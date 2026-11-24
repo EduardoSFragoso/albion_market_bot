@@ -48,8 +48,8 @@ export interface CraftResult {
     usedCity?: string;
     fallbackCity?: string; // set when buyCity had no live price and another city was used
   }>;
-  materialCost: number; // silver per craft (RRR-adjusted)
-  totalCost: number; // materialCost + setup fee per craft
+  materialCost: number; // silver per craft (RRR-adjusted; per unit of output — all current recipes craft 1)
+  totalCost: number; // = materialCost (taxes are taken on the revenue side)
   salePrice: number; // per unit (instant sell vs sell order)
   revenue: number; // salePrice * amount * (1 - salesTax)
   profit: number; // revenue - totalCost
@@ -114,7 +114,9 @@ export function calcCraft(args: CraftCalcArgs): CraftResult {
 
   const materialCost = materials.reduce((s, m) => s + m.cost, 0) / (recipe.amount || 1);
   const salePrice = unitPrice(outPrice, 'instant', 'sell');
-  const revenue = salePrice * recipe.amount * (1 - settings.salesTaxPct / 100);
+  // revenue applies both taxes, matching the flip calculator and the bot's /lucro
+  // (sales tax 8%/4% + order setup fee 2.5%/1.5%) — see user spec.
+  const revenue = salePrice * recipe.amount * (1 - settings.salesTaxPct / 100) * (1 - settings.setupFeePct / 100);
   const totalCost = materialCost;
   const profit = revenue - totalCost;
 

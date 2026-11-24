@@ -1,5 +1,5 @@
 // typed client for /api/*
-import type { MarketPrice, LocationHistory, ItemIndexEntry } from '@albion/core';
+import type { MarketPrice, LocationHistory, ItemIndexEntry, RankResult } from '@albion/core';
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(path);
@@ -42,6 +42,15 @@ export const api = {
   },
   history: (itemId: string, days = 14) =>
     get<{ history: LocationHistory[] }>(`/api/history?item=${encodeURIComponent(itemId)}&days=${days}&timeScale=24&qualities=1`),
+  rank: (args: { tierMin: number; tierMax: number; enchants: '' | string; sellCity: string; buyMode: 'instant' | 'order'; rrr: number; salesTax: number; setupFee: number; topN?: number }) => {
+    const p = new URLSearchParams({
+      tierMin: String(args.tierMin), tierMax: String(args.tierMax), sellCity: args.sellCity,
+      buyMode: args.buyMode, rrr: String(args.rrr), salesTax: String(args.salesTax), setupFee: String(args.setupFee),
+      topN: String(args.topN ?? 100),
+    });
+    if (args.enchants) p.set('enchants', args.enchants);
+    return get<RankResult>(`/api/rank?${p}`);
+  },
 };
 
 export type { MarketPrice, LocationHistory, ItemIndexEntry };

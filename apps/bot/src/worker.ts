@@ -66,6 +66,25 @@ interface CraftResult {
   missingCities: string[];
 }
 
+interface RankEntry {
+  itemId: string;
+  en: string;
+  pt: string;
+  tier: number;
+  ench: number;
+  materialCost: number;
+  salePrice: number;
+  netPrice: number;
+  profit: number;
+  profitPct: number;
+}
+
+interface RankResponse {
+  universeSize: number;
+  entries: RankEntry[];
+  error?: string;
+}
+
 const MAIN_CITIES = [
   'Thetford',
   'Fort Sterling',
@@ -89,7 +108,9 @@ interface InteractionOption {
 }
 
 interface Interaction {
-  type: number; // 1 = PING
+  type: number; // 1 = PING, 2 = APPLICATION_COMMAND
+  application_id?: string;
+  token?: string; // interaction token — basta para followup, sem bot token
   data?: {
     id: string;
     name: string;
@@ -101,6 +122,7 @@ interface Interaction {
 const InteractionResponseType = {
   PONG: 1,
   CHANNEL_MESSAGE_WITH_SOURCE: 4,
+  DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE: 5, // reconhece já, edita depois via webhook
 } as const;
 
 const COLOR_OK = 0x22c55e;
@@ -561,6 +583,84 @@ async function cmdLucro(env: Env, options: InteractionOption[] | undefined): Pro
   };
 }
 
+// ---------- /oportunidades (deferred: o scan em massa pode passar de 3s) ----------
+
+function numOpt(options: InteractionOption[] | undefined, name: string): number | undefined {
+  const v = options?.find((o) => o.name === name)?.value;
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string' && v !== '') return Number(v);
+  return undefined;
+}
+
+async function cmdOportunidades(env: Env, options: InteractionOption[] | undefined): Promise<MessageData> {
+  const tierMin = clampInt(numOpt(options, 'tier_min'), 1, 8, 4);
+  const tierMax = clampInt(numOpt(options, 'tier_max'), tierMin, 8, 6);
+  const ench = numOpt(options, 'encantamento');
+
+  const params: Record<string, string> = {
+    tierMin: String(tierMin),
+    tierMax: String(tierMax),
+    sellCity: 'Black Market',
+    buyMode: 'instant',
+    rrr: '0.152',
+    salesTax: String(SALES_TAX_PCT),
+    setupFee: String(SETUP_FEE_PCT),
+    topN: '10',
+  };
+  if (ench !== undefined) params.enchants = String(clampInt(ench, 0, 3, 0));
+
+  const data = await siteApi<RankResponse>(env, 'rank', params);
+  if (data.error) return { content: `⚠️ ${data.error}` };
+  const entries = data.entries ?? [];
+  if (!entries.length) {
+    return {
+      content: `⚠️ Nenhuma oportunidade encontrada para T${tierMin}–T${tierMax} agora.` +
+        `\n💡 Dados dependem de scans da comunidade — tente outra faixa de tier.`,
+    };
+  }
+
+  const lines = entries.map((e, i) => {
+    const name = (e.pt || e.en || e.itemId) + (e.ench ? ` .${e.ench}` : '');
+    return `${String(i + 1).padStart(2, ' ')}. ${name.padEnd(26).slice(0, 26)} T${e.tier}${e.ench ? `.${e.ench}` : ''} | custo ${D(e.materialCost)} → venda ${D(e.netPrice)} | ${e.profit >= 0 ? '+' : ''}${D(e.profit)} (${D(e.profitPct * 100, 1)}%)`;
+  });
+
+  return {
+    embeds: [
+      {
+        title: '🔎 Oportunidades de craft (Black Market)',
+        description: `Comprando materiais na cidade mais barata, venda no Black Market.\n\`\`\`\n${lines.join('\n')}\n\`\`\``,
+        color: entries[0].profit > 0 ? COLOR_OK : COLOR_BAD,
+        thumbnail: { url: iconUrl(entries[0].itemId, 3) },
+        fields: [
+          { name: '🥇 Top 1', value: `**${(entries[0].pt || entries[0].en)}${entries[0].ench ? ` .${entries[0].ench}` : ''}** — ${entries[0].profit >= 0 ? '+' : ''}${D(entries[0].profit)} lucro/unid. (${D(entries[0].profitPct * 100, 1)}% sobre o custo)` },
+        ],
+        footer: {
+          text: `T${tierMin}–T${tierMax}${ench !== undefined ? ` · encantamento .${ench}` : ''} · ${D(data.universeSize)} itens · RRR 15.2% · impostos base (${SALES_TAX_PCT}% + ${SETUP_FEE_PCT}%)`,
+        },
+      },
+    ],
+  };
+}
+
+function clampInt(v: number | undefined, min: number, max: number, fallback: number): number {
+  if (v === undefined || !Number.isFinite(v)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(v)));
+}
+
+/** Edita a resposta diferida via webhook de interação (não precisa do bot token). */
+async function followupEdit(interaction: Interaction, msg: MessageData): Promise<void> {
+  const url = `https://discord.com/api/v10/webhooks/${interaction.application_id}/${interaction.token}/messages/@original`;
+  try {
+    await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(msg),
+    }); // falha silenciosa: não há para onde reportar dentro do followup
+  } catch {
+    /* idem */
+  }
+}
+
 // ---------- Worker ----------
 
 interface Env {
@@ -570,7 +670,7 @@ interface Env {
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: { waitUntil: (p: Promise<unknown>) => void }): Promise<Response> {
     // healthcheck simples fora do fluxo do Discord
     if (request.method === 'GET') {
       return new Response('albion-market-bot online', { status: 200 });
@@ -616,6 +716,21 @@ export default {
             return reply(await cmdCraft(env, options));
           case 'lucro':
             return reply(await cmdLucro(env, options));
+          case 'oportunidades':
+            // Deferred: o scan em massa pode demorar >3s. Responde já (type 5),
+            // calcula em background e edita a mensagem pelo webhook da interação.
+            ctx.waitUntil(
+              cmdOportunidades(env, options)
+                .then((msg) => followupEdit(interaction, msg))
+                .catch((err) =>
+                  followupEdit(interaction, {
+                    content: `⚠️ ${err instanceof ApiError ? err.message : 'Erro inesperado — tente novamente.'}`,
+                  }),
+                ),
+            );
+            return new Response(JSON.stringify({ type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE }), {
+              headers: { 'content-type': 'application/json' },
+            });
           default:
             return reply({ content: `❓ Comando desconhecido: \`/${interaction.data.name}\`.` });
         }

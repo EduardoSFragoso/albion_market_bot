@@ -1,14 +1,22 @@
+// NOTE: editing THIS file forces wrangler dev to rebuild; changing only packages/core
+// (accessed via node_modules symlinks) does not trip the watcher in local dev.
+
 // Pages Functions: /api/* — shared backend for the site and the Discord bot.
 // Proxies the Albion Online Data Project API with caching and JSON contracts.
 // Env var AODP_SERVER selects west (default) | east | europe.
 import {
   fetchPrices, fetchHistory, searchItems, getItem, getRecipe,
-  calcCraft, calcBestFlip, cheapestCityFor, MAIN_CITIES,
+  calcCraft, calcBestFlip, cheapestCityFor, rankOpportunities, MAIN_CITIES,
 } from '@albion/core';
 
 interface Env { AODP_SERVER?: string }
 
-const num = (v: string | null, d: number) => (Number.isFinite(Number(v)) ? Number(v) : d);
+// absent/empty param -> default. (Number(null)+Number('') = 0, so guard explicitly.)
+const num = (v: string | null, d: number) => {
+  if (v === null || v.trim() === '') return d;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : d;
+};
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 const list = (v: string | null) => (v ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 
@@ -33,7 +41,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
       return json({
         service: 'albion-market-api',
         server,
-        endpoints: ['/api/search', '/api/prices', '/api/craft', '/api/flip', '/api/history'],
+        endpoints: ['/api/search', '/api/prices', '/api/craft', '/api/flip', '/api/history', '/api/rank'],
       });
     }
 
@@ -83,6 +91,28 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
       const prices = await fetchPrices(server, [itemId], { locations: [...MAIN_CITIES], qualities: [1] });
       const best = calcBestFlip({ prices, settings: { salesTaxPct, setupFeePct } });
       return json({ server, item: itemId, prices, best });
+    }
+
+    if (path === '/rank') {
+      // Mass scan of the craftable universe. Chunk count is bounded by maxItems + chunkSize:
+      // free Workers/Pages allow ~50 subrequests — maxItems 1200 @ chunk 200 = ~11 chunks, safe.
+      const tierMin = clamp(num(url.searchParams.get('tierMin'), 4), 1, 8);
+      const tierMax = clamp(num(url.searchParams.get('tierMax'), 6), tierMin, 8);
+      const enchants = list(url.searchParams.get('enchants')).map(Number).filter((n) => n >= 0 && n <= 3);
+      const maxItems = clamp(num(url.searchParams.get('maxItems'), 1200), 1, 1500);
+      const buyMode = url.searchParams.get('buyMode') === 'order' ? 'order' : 'instant';
+      const sellCity = url.searchParams.get('sellCity') || 'Black Market';
+      const rrr = clamp(num(url.searchParams.get('rrr'), 0.152), 0, 0.6);
+      const salesTaxPct = clamp(num(url.searchParams.get('salesTax'), 8), 0, 25);
+      const setupFeePct = clamp(num(url.searchParams.get('setupFee'), 2.5), 0, 10);
+      const topN = clamp(num(url.searchParams.get('topN'), 100), 1, 250);
+      const result = await rankOpportunities({
+        server, minTier: tierMin, maxTier: tierMax,
+        enchants: enchants.length ? enchants : undefined,
+        excludeCategories: ['furniture', 'vanity', 'farming'],
+        maxItems, buyMode, sellCity, rrr, salesTaxPct, setupFeePct, topN,
+      });
+      return json(result);
     }
 
     if (path === '/history') {

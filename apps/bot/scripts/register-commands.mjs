@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Registra os 3 slash commands do bot globalmente na API do Discord.
+// Registra os 4 slash commands do bot globalmente na API do Discord.
 // Node puro (fetch), sem dependências — nada de @albion/core aqui.
 //
 // Credenciais: env DISCORD_BOT_TOKEN e DISCORD_APPLICATION_ID,
@@ -122,6 +122,36 @@ const commands = [
         description: 'Nome do item (PT ou EN) ou id exato (ex.: T4_BAG)',
         type: 3,
         required: true,
+      },
+    ],
+  },
+  {
+    name: 'oportunidades',
+    description: 'Top 10 itens mais lucrativos para craftar e vender no Black Market (scan em massa).',
+    options: [
+      {
+        name: 'tier_min',
+        description: 'Tier inicial do scan (padrão: 4)',
+        type: 4, // INTEGER
+        required: false,
+        min_value: 1,
+        max_value: 8,
+      },
+      {
+        name: 'tier_max',
+        description: 'Tier final do scan (padrão: 6)',
+        type: 4,
+        required: false,
+        min_value: 1,
+        max_value: 8,
+      },
+      {
+        name: 'encantamento',
+        description: 'Filtra por nível de encantamento (padrão: sem filtro)',
+        type: 4,
+        required: false,
+        min_value: 0,
+        max_value: 3,
       },
     ],
   },
