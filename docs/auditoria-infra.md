@@ -64,6 +64,26 @@ curl -s -D - -o /dev/null -H 'Origin: https://evil.example' https://SEU-SITE.pag
   Se um dia houver autenticação/cookies, trocar `*` pela origem exata.
 - **HTTPS:** Pages/Workers já são HTTPS por padrão; certificar que o bot aponta `SITE_URL` para `https://...` em produção.
 
+### 3a. Orçamento free tier (auditado em 2026-11 contra docs oficiais)
+
+Meta do projeto: **custo total R$ 0**. Mapeamento recurso → limite → uso real:
+
+| Recurso | Limite do free | Uso do projeto | Folga |
+|---|---|---|---|
+| Site estático (Pages) | requisições e banda **ilimitados**; 20k arquivos/site, 25 MiB/arquivo | bundle Vite pequeno (poucos arquivos, < 1 MB) | ampla |
+| Builds Pages | 500/mês **por conta** (1 simultâneo, timeout 20 min); cada push na branch conectada = 1 build | pushes pontuais + deploy manual (`wrangler pages deploy` **não** consome a cota) | ampla se não empurrar commit por commit |
+| Functions (site + bot) | **100k requests/dia por conta**, reset 00:00 UTC; excedeu → erro 1027 | uso pessoal: centenas/dia; site e bot dividem a conta | ampla |
+| CPU por invocação | 10 ms | só JSON parsing + `crypto.subtle.verify` Ed25519 (nativo, < 1 ms); trabalho de rede não conta como CPU | ampla |
+| Subrequests | 50 por invocação | `/api/rank` ≈ 7–9 chunks AODP; `/api/enchant` 1; bot 2–3 (search + dados) | ampla |
+| Duração (wall time) | sem limite enquanto o cliente conecta | `/api/rank` (segundos) e o `/oportunidades` deferred do bot dependem disso | ok |
+| GitHub Actions | repo **público** = minutos ilimitados; privado = 2000 min/mês | CI ~2–4 min por push | ampla |
+| AODP | serviço gratuito da comunidade (não é Cloudflare) | gzip + cache + chunking + throttle handling **já implementados** — ser bom cidadão é requisito, não bônus | — |
+| Discord | gratuito (global commands, interactions, Ed25519) | 2–3 subrequests por comando | ampla |
+
+- **Nada pagável está no plano:** sem KV/D1/R2/Queues/Cron. Favoritos e alertas (excluídos do escopo) seriam os primeiros a exigir estado persistido.
+- **Plano de fuga:** se um dia passar de 100k req/dia (só se o site viralizar), o Workers Paid é US$ 5/mês — nenhuma mudança de código necessária.
+- Cuidado único: **builds são por conta** — se empurrar muita coisa de uma vez, agrupar commits (cada push dispara um build).
+
 ## 4. Backend (functions/api/* e worker do bot)
 
 - Toda entrada de query validada/normalizada (ids aceitos, números com clamp) — os endpoints já fazem; manter assim em commits e na memória das rotas novas.
