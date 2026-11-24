@@ -1,0 +1,8 @@
+# Copie este arquivo para .dev.vars (usado pelo `wrangler dev` local).
+# Em produção, prefira `wrangler secret put` para cada chave abaixo.
+# Preencha os valores no Discord Developer Portal → seu app → General Information / Bot.
+SITE_URL=http://127.0.0.1:8788
+DISCORD_PUBLIC_KEY=public_key_hex_do_app
+DISCORD_APPLICATION_ID=application_id_do_app
+# Usado apenas pelo script scripts/register-commands.mjs (não é lido pelo worker):
+DISCORD_BOT_TOKEN=token_do_bot

@@ -20,7 +20,7 @@ export interface CraftResponse {
     ok: boolean;
     reason?: string;
     amountPerCraft: number;
-    materials: { id: string; countPerCraft: number; effectiveCount: number; unitPrice: number; cost: number; missingPrice: boolean }[];
+    materials: { id: string; countPerCraft: number; effectiveCount: number; unitPrice: number; cost: number; missingPrice: boolean; usedCity?: string; fallbackCity?: string }[];
     materialCost: number;
     totalCost: number;
     salePrice: number;

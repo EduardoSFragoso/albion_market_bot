@@ -1,0 +1,12 @@
+# Bot Discord do Albion Market Tools (Cloudflare Worker).
+# Este worker conversa com a API interna do site (Pages Functions).
+name = "albion-market-bot"
+main = "src/worker.ts"
+compatibility_date = "2024-09-23"
+
+# Em produção use `wrangler secret put` para DISCORD_PUBLIC_KEY e
+# DISCORD_APPLICATION_ID (ou descomente e edite aqui se preferir vars).
+[vars]
+SITE_URL = "https://albion-market-tools.pages.dev"
+DISCORD_PUBLIC_KEY = "SUBSTITUA_PELA_PUBLIC_KEY_DO_APP_DISCORD"
+DISCORD_APPLICATION_ID = "SUBSTITUA_PELO_APPLICATION_ID_DO_APP_DISCORD"

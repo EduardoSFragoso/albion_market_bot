@@ -43,13 +43,25 @@ export function searchItems(query: string, opts: SearchOptions = {}): ItemIndexE
   if (!q) return [];
   const limit = opts.limit ?? 12;
   const terms = q.split(/\s+/);
+  // enchant hint: tokens like ".1" / "@2" (users often paste display names like "Bolsa do Adepto .1")
+  let enchHint: number | null = null;
+  const matchTerms = terms.filter((term) => {
+    const m = term.match(/^[.@](\d)$/);
+    if (m && enchHint === null) {
+      enchHint = Number(m[1]);
+      return false;
+    }
+    return true;
+  });
+  if (!matchTerms.length) return [];
   const scored: Array<{ item: ItemIndexEntry; score: number }> = [];
 
   for (const { item, lower } of searchIndex) {
     if (opts.craftableOnly && !item.craftable) continue;
+    if (enchHint !== null && item.ench !== enchHint) continue;
     let score = -1;
     let ok = true;
-    for (const term of terms) {
+    for (const term of matchTerms) {
       const pos = lower.indexOf(term);
       if (pos === -1) {
         ok = false;
