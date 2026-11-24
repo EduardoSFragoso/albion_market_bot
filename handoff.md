@@ -126,7 +126,7 @@ Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper
 | 1 | `rank.ts` no core + `/api/rank` + aba Oportunidades + `/oportunidades` no bot | ✅ feito |
 | 2 | Casos no sanity.ts com resultado conhecido (craft c/ setup fee, rank, universe) | ✅ feito |
 | 3 | Comando `/oportunidades` — followup edit validado apenas com token fake (ACK type 5 E2E ok); revisar em produção com app real | pendente (pós-deploy) |
-| 4 | CI (GitHub Actions) + dependabot + template de PR (arquivos); configurar remoto é manual | pendente |
+| 4 | CI (GitHub Actions) + dependabot + template de PR (arquivos); configurar remoto e ativar ruleset é manual | ✅ arquivos criados |
 | 5 | Deploy (Pages + Workers + secrets): **manual, quando o usuário mandar** | bloqueado por decisão do usuário |
 
 ## 8. Histórico estrutural
@@ -136,3 +136,5 @@ Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper
 | `a323062` | core (API + calculadoras + banco de itens/receitas) e site Cloudflare Pages |
 | `94212a1` | bot do Discord (Worker) + busca com sufixo de encantamento |
 | (este) | diretrizes (AGENTS.md, docs/), handoff.md, package-lock.json |
+| `0378b8a` | ranking de oportunidades (core rank + /api/rank + aba + /oportunidades) |
+| (infra)   | CI (ci.yml), dependabot, template de PR |

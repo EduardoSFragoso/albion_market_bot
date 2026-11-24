@@ -1,0 +1,37 @@
+name: CI
+
+# Portão do merge (ver docs/configuracao-repositorio.md): roda o mesmo que
+# o AGENTS pede antes de "tarefa concluída" — typecheck, build do site e sanity do core.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck (todos os workspaces)
+        run: npm run typecheck
+
+      - name: Sanity do core (asserts de resultado conhecido, sem rede)
+        run: npx tsx packages/core/test/sanity.ts
+
+      - name: Build do site (o que o Pages publica)
+        run: npm run build:web
+
+      - name: Bot — script de registro compila
+        run: node --check apps/bot/scripts/register-commands.mjs
