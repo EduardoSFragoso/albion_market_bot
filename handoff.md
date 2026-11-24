@@ -42,7 +42,7 @@ apps/web/                 site (Vite + React + Tailwind v4)
 apps/bot/                 Worker puro (sem SDK): Ed25519 + comandos /preco /craft /lucro /encantamento /oportunidades
   src/worker.ts           verificação de assinatura, PING, handlers (embeds PT-BR); /oportunidades usa DEFERRED (type 5) + followup via webhook da interação
   scripts/register-commands.mjs   registra os 5 comandos (PUT /applications/<id>/commands)
-docs/                     auditoria-infra.md, configuracao-repositorio.md
+docs/                     auditoria-infra.md, configuracao-repositorio.md, scan-daemon.md (guia; execução manual)
 ```
 
 Namespace de imports no bot: **`@albion/core` não é importado pelo worker** (JSONs de
@@ -132,7 +132,7 @@ Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper
 | 4 | CI (GitHub Actions) + dependabot + template de PR (arquivos); configurar remoto e ativar ruleset é manual | ✅ arquivos criados |
 | 5 | Deploy (Pages + Workers + secrets): **manual, quando o usuário mandar** | bloqueado por decisão do usuário |
 | 6 | Comparação de encantamento (`enchant.ts` no core + `/api/enchant` + aba Encantamento + `/encantamento` no bot) | ✅ feito |
-| 7 | Scan daemon (Node + albiondata-client local) | ideia no roadmap — só retomar quando o usuário pedir |
+| 7 | Scan daemon — **não há código a escrever**: guia em docs/scan-daemon.md (instalar cliente da comunidade + rotina de varredura manual). Execução é na máquina do usuário; nada disso é deployável pelo agente | ✅ guia entregue |
 
 ## 8. Histórico estrutural
 

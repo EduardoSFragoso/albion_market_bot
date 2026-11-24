@@ -73,7 +73,7 @@ Depois disso o bot responde `/preco T4_BAG`, `/craft item:T5_CLOTH`, `/lucro ite
 
 ## Roadmap
 
-- [ ] Scan daemon (Node + albiondata-client local) pra alimentar preços com seus próprios scans
+- [ ] Scan daemon: contribuir com seus próprios scans (clientes da comunidade, leitura passiva) — guia pronto em [docs/scan-daemon.md](docs/scan-daemon.md)
 - [x] Rank de melhores flushes/crafts entre vários itens (tipo ScanAlbion) — aba Oportunidades no site + `/oportunidades` no bot
 - [x] Lucro de encantamento comparando comprar pronto vs. craftar .0/.1/.2 — aba Encantamento no site + `/encantamento` no bot
 
