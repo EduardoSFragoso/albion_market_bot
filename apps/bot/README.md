@@ -1,6 +1,6 @@
 # Bot Discord — Albion Market Tools (@albion/bot)
 
-Worker do Cloudflare que expõe os comandos `/preco`, `/craft` e `/lucro` no Discord.
+Worker do Cloudflare que expõe os comandos `/preco`, `/craft`, `/lucro`, `/encantamento` e `/oportunidades` no Discord.
 Ele **não** embute os dados do jogo: todas as consultas passam pela API do site
 (Pages Functions, definida por `SITE_URL`).
 
@@ -11,6 +11,8 @@ Ele **não** embute os dados do jogo: todas as consultas passam pela API do site
 | `/preco item [qualidade]` | Tabela de preços por cidade (vender por / comprar por) + melhor rota de compra/venda. |
 | `/craft item [cidade_compra] [cidade_venda] [rrr]` | Custo por material, custo total, receita e lucro líquido (verde/vermelho) com impostos. |
 | `/lucro item` | Top 5 rotas de lucro: compra instantânea → venda em ordem, com impostos descontados. |
+| `/encantamento item [rrr]` | Comprar pronto vs. craftar em cada nível de encantamento (.0 a .3), com % de economia. |
+| `/oportunidades [tier_min] [tier_max] [encantamento]` | Top 10 itens mais lucrativos para craftar e vender no Black Market (scan em massa). |
 
 ## 1. Criar o app no Discord
 
@@ -89,5 +91,5 @@ inicial — o worker responde `{"type":1}`.
 conta dos JSONs de dados): apenas tipos/constantes locais espelham os contratos.
 
 ```text
-Discord → POST (url verificada Ed25519) → worker → https://SITE_URL/api/{search,prices,craft,flip}
+Discord → POST (url verificada Ed25519) → worker → https://SITE_URL/api/{search,prices,craft,flip,rank,enchant}
 ```

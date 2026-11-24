@@ -2,8 +2,8 @@
 
 Ferramentas de mercado para **Albion Online** — servidor **Americas (oeste)**:
 
-- 🌐 **Site** (Cloudflare Pages): busca de itens (PT-BR/EN, light/dark), consulta de preços por cidade/qualidade, **calculadora de custo de craft** (retorno de recursos, impostos, modo de compra), **lucro/arbitragem** (incluindo flip pro Black Market), histórico de preços e a aba **Oportunidades** — scan em massa dos itens craftáveis ranqueados por margem de lucro.
-- 🤖 **Bot do Discord** (Cloudflare Workers, free tier): `/preco`, `/craft`, `/lucro` e `/oportunidades` respondem usando **a mesma API do site**.
+- 🌐 **Site** (Cloudflare Pages): busca de itens (PT-BR/EN, light/dark), consulta de preços por cidade/qualidade, **calculadora de custo de craft** (retorno de recursos, impostos, modo de compra), **lucro/arbitragem** (incluindo flip pro Black Market), histórico de preços, a aba **Oportunidades** — scan em massa dos itens craftáveis ranqueados por margem de lucro — e a aba **Encantamento** — comprar pronto vs. craftar em cada nível (.0–.3).
+- 🤖 **Bot do Discord** (Cloudflare Workers, free tier): `/preco`, `/craft`, `/lucro`, `/encantamento` e `/oportunidades` respondem usando **a mesma API do site**.
 - 📦 **`@albion/core`**: lógica compartilhada — cliente da API do [Albion Online Data Project](https://www.albion-online-data.com), banco de itens/receitas gerado dos dumps do jogo (`ao-data/ao-bin-dumps`), e as calculadoras.
 
 ```
@@ -55,14 +55,14 @@ cd apps/web && npm run build && npx wrangler pages dev dist --port 8788
 cd apps/bot
 npx wrangler secret put DISCORD_BOT_TOKEN
 # .dev.vars local (não vai pro git): DISCORD_BOT_TOKEN=..., DISCORD_PUBLIC_KEY=..., DISCORD_APPLICATION_ID=..., SITE_URL=https://<seu-site>.pages.dev
-npm run register          # registra /preco, /craft, /lucro e /oportunidades
+npm run register          # registra /preco, /craft, /lucro, /encantamento e /oportunidades
 npm run deploy            # npx wrangler deploy
 ```
 
 3. No Developer Portal → General Information, cole o **Public Key** (conferir com o do wrangler.toml) e:
    - **Interactions Endpoint URL**: `https://albion-market-bot.<seu-subdominio>.workers.dev`
 
-Depois disso o bot responde `/preco T4_BAG`, `/craft item:T5_CLOTH`, `/lucro item:T6_MAIN_SWORD`, `/oportunidades tier_min:4 tier_max:5` etc.
+Depois disso o bot responde `/preco T4_BAG`, `/craft item:T5_CLOTH`, `/lucro item:T6_MAIN_SWORD`, `/encantamento item:T4_BAG`, `/oportunidades tier_min:4 tier_max:5` etc.
 
 ## Limitações conhecidas
 
@@ -75,7 +75,7 @@ Depois disso o bot responde `/preco T4_BAG`, `/craft item:T5_CLOTH`, `/lucro ite
 
 - [ ] Scan daemon (Node + albiondata-client local) pra alimentar preços com seus próprios scans
 - [x] Rank de melhores flushes/crafts entre vários itens (tipo ScanAlbion) — aba Oportunidades no site + `/oportunidades` no bot
-- [ ] Lucro de encantamento comparando comprar pronto vs. craftar .0/.1/.2
+- [x] Lucro de encantamento comparando comprar pronto vs. craftar .0/.1/.2 — aba Encantamento no site + `/encantamento` no bot
 - [ ] Favoritos e alerts (via gateway/VPS)
 - [ ] Suporte aos outros servidores (Europa/Asia) com seletor
 

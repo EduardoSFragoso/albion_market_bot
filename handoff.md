@@ -29,18 +29,19 @@ packages/core/            @albion/core
   src/api.ts              fetchPrices/fetchHistory/fetchGold, MAIN_CITIES (cache em memória: preços 90s, história 600s, gold 300s)
   src/items.ts            índice de itens + RECIPES, searchItems (aceita sufixo .1/@n), displayName (pt/en), iconUrl
   src/calc/craft.ts       calcCraft, cheapestCityFor, unitPrice/livePrice, RRR_PRESETS, SALES_TAX, SETUP_FEE
-  src/calc/flip.ts        calcBestFlip, calcFlipBetween, cheapestCityFor
+  src/calc/flip.ts        calcBestFlip, calcFlipBetween, craftMaterialCost (custo de materiais por cidade mais barata, RRR)
   src/calc/rank.ts        rankOpportunities/rankUniverse/scoreCraftItem — scan em massa de oportunidades
+  src/calc/enchant.ts     compareEnchants/enchantFamilyIds — comprar pronto vs. craftar por nível (.0–.3)
   src/data/items.json     11.069 itens (nomes PT-BR) — GERADO, não editar à mão
   src/data/recipes.json   8.793 receitas — GERADO
   test/sanity.ts          rede de segurança (npx tsx)
 apps/web/                 site (Vite + React + Tailwind v4)
   functions/api/[[route]].ts   backend compartilhado site+bot
-  src/components/         SearchBar, PriceTable, PricesPanel, CraftPanel, FlipPanel, HistoryPanel, OpportunitiesPanel
+  src/components/         SearchBar, PriceTable, PricesPanel, CraftPanel, FlipPanel, HistoryPanel, OpportunitiesPanel, EnchantPanel
   src/i18n.ts             dicionário PT/EN (site tem toggle de idioma + tema claro/escuro)
-apps/bot/                 Worker puro (sem SDK): Ed25519 + comandos /preco /craft /lucro /oportunidades
+apps/bot/                 Worker puro (sem SDK): Ed25519 + comandos /preco /craft /lucro /encantamento /oportunidades
   src/worker.ts           verificação de assinatura, PING, handlers (embeds PT-BR); /oportunidades usa DEFERRED (type 5) + followup via webhook da interação
-  scripts/register-commands.mjs   registra os 4 comandos (PUT /applications/<id>/commands)
+  scripts/register-commands.mjs   registra os 5 comandos (PUT /applications/<id>/commands)
 docs/                     auditoria-infra.md, configuracao-repositorio.md
 ```
 
@@ -78,6 +79,7 @@ Respostas JSON com `content-type`, CORS `*`,
 | `/api/flip` | `item, salesTax, setupFee` | `{ server, item, prices, best: FlipResult\|null }` |
 | `/api/history` | `item, days (1-30), timeScale=1\|6\|24, locations=, qualities=` | `{ server, history }` |
 | `/api/rank` | `tierMin, tierMax, enchants, maxItems (≤1500), buyMode, sellCity ('best'=maior lance), rrr, salesTax, setupFee, topN (≤250)` | `{ universeSize, scanned, skippedMissing, chunks, entries: RankEntry[], paramsOk }` |
+| `/api/enchant` | `item (id ou id@n), buyMode=instant\|order, rrr` | `{ server, baseId, rows: EnchantRow[] }` — uma linha por nível .0–.3 existente; `craftCost/buyPrice: null` = sem dado vivo; sufixo `@n` no input é removido antes (usa `enchantBaseId`) |
 
 Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper `num` trata `null`/`''` explicitamente — `Number(null)=0` já enganou uma vez: `/api/rank` primeira versão capava o universo em 1 item). Erros: `{ error: string }` com status 400/404/502 (nunca stack trace).
 
@@ -87,6 +89,7 @@ Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper
 - Impostos de venda: base 8% (premium 4%) + setup 2.5% (premium 1.5%) — **calcCraft aplica AMBOS** desde a feature de rank (antes ignorava o setup fee; alinhamento com flip e bot).
 - Resource Return Rate (RRR): presets 0.152 (base), 0.248 (cidade bônus/refineria), 0.435 (Caerleon).
 - Craft sem preço vivo do material → usa cidade mais barata com preço e marca `fallbackCity`; **nunca custo 0 silencioso**.
+- Comprar PRONTO (comparação de encantamento) = menor **oferta viva** (`sell_price_min`) em qualquer cidade, **incluindo Black Market** — comprar de ofertas no BM é legítimo; excluir BM só vale para vender ao NPC (Black Market nunca é fonte de material).
 
 ### 4c. IDs de item do mercado (armadilha que já queimou)
 
@@ -100,7 +103,7 @@ Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper
 ### 4d. Bot do Discord
 
 - Assinatura Ed25519 via WebCrypto sobre `timestamp + body` raw; sem/ruim assinatura → 401. Nunca desativar.
-- PING (`type:1`) → `{ type: 1 }`. `/preco`, `/craft`, `/lucro` respondem type 4 síncronos. **`/oportunidades` é DEFERRED** (type 5 imediato; o scan pode passar dos 3s do Discord) e edita a resposta via `PATCH /webhooks/<app_id>/<interaction_token>/messages/@original` — usa só o token da interação, sem bot token. Novos comandos demorados devem seguir esse padrão.
+- PING (`type:1`) → `{ type: 1 }`. `/preco`, `/craft`, `/lucro`, `/encantamento` respondem type 4 síncronos. **`/oportunidades` é DEFERRED** (type 5 imediato; o scan pode passar dos 3s do Discord) e edita a resposta via `PATCH /webhooks/<app_id>/<interaction_token>/messages/@original` — usa só o token da interação, sem bot token. Novos comandos demorados devem seguir esse padrão.
 - Nomes de item aceitam sufixo de encantamento (`.1`, `@2`) — resolvidos por `/api/search`.
 - `SITE_URL` aponta pro site (Pages); o bot usa os endpoints da 4a.
 - Registro de comandos: `scripts/register-commands.mjs`, token vem de env ou `apps/bot/.dev.vars` (gitignored; template em `.dev.vars.example`).
@@ -128,6 +131,8 @@ Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper
 | 3 | Comando `/oportunidades` — followup edit validado apenas com token fake (ACK type 5 E2E ok); revisar em produção com app real | pendente (pós-deploy) |
 | 4 | CI (GitHub Actions) + dependabot + template de PR (arquivos); configurar remoto e ativar ruleset é manual | ✅ arquivos criados |
 | 5 | Deploy (Pages + Workers + secrets): **manual, quando o usuário mandar** | bloqueado por decisão do usuário |
+| 6 | Comparação de encantamento (`enchant.ts` no core + `/api/enchant` + aba Encantamento + `/encantamento` no bot) | ✅ feito |
+| 7 | Scan daemon e favoritos/alertas (precisam de estado persistido: D1/KV) | fora do escopo atual (decisão do usuário) |
 
 ## 8. Histórico estrutural
 
@@ -135,6 +140,7 @@ Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper
 |---|---|
 | `a323062` | core (API + calculadoras + banco de itens/receitas) e site Cloudflare Pages |
 | `94212a1` | bot do Discord (Worker) + busca com sufixo de encantamento |
-| (este) | diretrizes (AGENTS.md, docs/), handoff.md, package-lock.json |
+| `418883a` | diretrizes (AGENTS.md, docs/), handoff.md, package-lock.json |
 | `0378b8a` | ranking de oportunidades (core rank + /api/rank + aba + /oportunidades) |
-| (infra)   | CI (ci.yml), dependabot, template de PR |
+| `2a965bf` | CI (ci.yml), dependabot, template de PR |
+| (este)    | comparação de encantamento (core enchant.ts + /api/enchant + aba Encantamento + /encantamento no bot) |

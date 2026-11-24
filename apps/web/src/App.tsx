@@ -9,9 +9,10 @@ import CraftPanel from './components/CraftPanel';
 import FlipPanel from './components/FlipPanel';
 import HistoryPanel from './components/HistoryPanel';
 import OpportunitiesPanel from './components/OpportunitiesPanel';
+import EnchantPanel from './components/EnchantPanel';
 import { getItem } from '@albion/core';
 
-type Tab = 'rank' | 'prices' | 'craft' | 'flip' | 'history';
+type Tab = 'rank' | 'prices' | 'craft' | 'enchant' | 'flip' | 'history';
 
 export default function App() {
   const [locale, setLocale] = useState<Locale>(() => (localStorage.getItem('locale') as Locale) ?? 'pt');
@@ -34,6 +35,7 @@ export default function App() {
     { id: 'rank', label: t(locale, 'tabRank') },
     { id: 'prices', label: t(locale, 'tabPrices') },
     { id: 'craft', label: t(locale, 'tabCraft') },
+    { id: 'enchant', label: t(locale, 'tabEnchant') },
     { id: 'flip', label: t(locale, 'tabFlip') },
     { id: 'history', label: t(locale, 'tabHistory') },
   ];
@@ -130,6 +132,7 @@ export default function App() {
           )}
           {tab === 'prices' && item && <PricesPanel itemId={item.id} locale={locale} premium={premium} />}
           {tab === 'craft' && item && <CraftPanel item={item} locale={locale} premium={premium} />}
+          {tab === 'enchant' && item && <EnchantPanel itemId={item.id} locale={locale} />}
           {tab === 'flip' && item && <FlipPanel itemId={item.id} locale={locale} premium={premium} />}
           {tab === 'history' && item && <HistoryPanel itemId={item.id} locale={locale} />}
         </div>

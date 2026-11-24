@@ -126,6 +126,26 @@ const commands = [
     ],
   },
   {
+    name: 'encantamento',
+    description: 'Compara comprar o item pronto vs. craftar em cada nível de encantamento (.0 a .3).',
+    options: [
+      {
+        name: 'item',
+        description: 'Nome do item (PT ou EN) ou id exato (ex.: T4_BAG)',
+        type: 3,
+        required: true,
+      },
+      {
+        name: 'rrr',
+        description: 'Resource Return Rate (0–0.6; padrão 0.152 = base)',
+        type: 10, // NUMBER
+        required: false,
+        min_value: 0,
+        max_value: 0.6,
+      },
+    ],
+  },
+  {
     name: 'oportunidades',
     description: 'Top 10 itens mais lucrativos para craftar e vender no Black Market (scan em massa).',
     options: [

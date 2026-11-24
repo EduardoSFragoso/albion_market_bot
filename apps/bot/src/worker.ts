@@ -85,6 +85,29 @@ interface RankResponse {
   error?: string;
 }
 
+interface EnchantRow {
+  ench: number;
+  outputId: string;
+  en: string;
+  pt: string;
+  hasRecipe: boolean;
+  buyPrice: number | null;
+  buyCity: string | null;
+  craftCost: number | null;
+  craftCities: string;
+  missing: string[];
+  cheaper: 'buy' | 'craft' | null;
+  savings: number | null;
+  savingsPct: number | null;
+}
+
+interface EnchantResponse {
+  server: string;
+  baseId: string;
+  rows: EnchantRow[];
+  error?: string;
+}
+
 const MAIN_CITIES = [
   'Thetford',
   'Fort Sterling',
@@ -647,6 +670,82 @@ function clampInt(v: number | undefined, min: number, max: number, fallback: num
   return Math.min(max, Math.max(min, Math.round(v)));
 }
 
+// ---------- /encantamento (comprar pronto vs. craftar, .0 a .3) ----------
+
+async function cmdEncantamento(env: Env, options: InteractionOption[] | undefined): Promise<MessageData> {
+  const text = pick(options, 'item');
+  if (!text) return { content: '❌ Informe o item (ex.: `Bolsa do Adepto` ou `T4_BAG`).' };
+  const rrrRaw = Number(pick(options, 'rrr'));
+  const rrr = Number.isFinite(rrrRaw) ? clamp(rrrRaw, 0, 0.6) : 0.152;
+
+  const found = await resolveItem(env, text);
+  if (!found) {
+    return {
+      content: `❌ Nenhum item encontrado para **${text}**.\n💡 Tente outro termo (PT ou EN) ou o id exato, como \`T4_BAG\`.`,
+    };
+  }
+  const name = entryName(found.entry, found.id);
+
+  const data = await siteApi<EnchantResponse>(env, 'enchant', {
+    item: found.id,
+    rrr: String(rrr),
+    buyMode: 'instant',
+  });
+  if (data.error) return { content: `⚠️ ${data.error}` };
+  const rows = data.rows ?? [];
+  if (!rows.length) return { content: `⚠️ Sem dados de encantamento para **${name}**.` };
+
+  const lines = rows.map((r) => {
+    const label = `.${r.ench}`;
+    const buy = r.buyPrice !== null ? `${D(r.buyPrice)} em ${r.buyCity}` : 'sem oferta viva';
+    const craft = r.craftCost !== null
+      ? D(r.craftCost)
+      : r.hasRecipe ? '⚠️ sem preço dos ingredientes' : '— (sem receita)';
+    let verdict: string;
+    if (r.cheaper === 'craft') verdict = `🔨 craftar ${D((r.savingsPct ?? 0) * 100, 1)}% mais barato`;
+    else if (r.cheaper === 'buy') verdict = `🛒 comprar pronto ${D((r.savingsPct ?? 0) * 100, 1)}% mais barato`;
+    else if (r.buyPrice !== null && r.craftCost !== null) verdict = '⚖️ empate';
+    else verdict = '? dados incompletos';
+    return `${label} | comprar ${buy} | craftar ${craft} → ${verdict}`;
+  });
+
+  const priced = rows.filter((r) => r.cheaper !== null);
+  const fields: EmbedField[] = [
+    {
+      name: '🧮 Cada nível de encantamento',
+      value: `\`\`\`\n${lines.join('\n')}\n\`\`\``,
+    },
+  ];
+  if (rows.some((r) => r.missing.length > 0)) {
+    fields.push({
+      name: '⚠️ Dado faltando',
+      value: 'Alguns ingredientes estão sem preço recente — nesses níveis a comparação fica incompleta.',
+    });
+  }
+  if (priced.length) {
+    const best = priced.reduce((a, b) => ((b.savingsPct ?? 0) > (a.savingsPct ?? 0) ? b : a));
+    const verb = best.cheaper === 'buy' ? 'Comprar pronto' : 'Craftar';
+    fields.push({
+      name: '🥇 Maior economia',
+      value: `**${verb} ${best.pt || best.en} .${best.ench}** — economiza ${D((best.savingsPct ?? 0) * 100, 1)}% (${D(Math.abs(best.savings ?? 0))} de prata).`,
+    });
+  }
+
+  return {
+    embeds: [
+      {
+        title: `${withEnchSuffix(name, data.baseId)} — comprar pronto vs. craftar`,
+        color: COLOR_INFO,
+        thumbnail: { url: iconUrl(data.baseId, 3) },
+        fields,
+        footer: {
+          text: `Comprar = menor oferta viva em qualquer cidade (incl. Black Market) · Craftar = materiais mais baratos, RRR ${D(rrr * 100, 1)}% · sem estágio de retorno`,
+        },
+      },
+    ],
+  };
+}
+
 /** Edita a resposta diferida via webhook de interação (não precisa do bot token). */
 async function followupEdit(interaction: Interaction, msg: MessageData): Promise<void> {
   const url = `https://discord.com/api/v10/webhooks/${interaction.application_id}/${interaction.token}/messages/@original`;
@@ -716,6 +815,8 @@ export default {
             return reply(await cmdCraft(env, options));
           case 'lucro':
             return reply(await cmdLucro(env, options));
+          case 'encantamento':
+            return reply(await cmdEncantamento(env, options));
           case 'oportunidades':
             // Deferred: o scan em massa pode demorar >3s. Responde já (type 5),
             // calcula em background e edita a mensagem pelo webhook da interação.

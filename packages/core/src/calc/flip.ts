@@ -90,6 +90,23 @@ export function calcFlipBetween(
   };
 }
 
+/** Ingrediente mais barato em qualquer cidade viva (menos Black Market) + custo RRR da receita. */
+export function craftMaterialCost(
+  recipe: Recipe,
+  rows: MarketPrice[], // prices quality-1 de TODOS os ingredientes
+  opts: { buyMode: PriceMode; rrr: number },
+): { cost: number; missing: string[]; cities: string } {
+  const cheapest = cheapestCityFor(recipe, rows, opts.buyMode);
+  const missing = cheapest.filter((c) => c.unitPrice <= 0).map((c) => c.id);
+  const total = cheapest.reduce((s, c, i) => s + c.unitPrice * recipe.resources[i].count * (1 - opts.rrr), 0);
+  const cities = [...new Set(cheapest.map((c) => (c.city === '—' ? [] : [c.city])).flat())].join('+');
+  return {
+    cost: missing.length === recipe.resources.length ? 0 : total / (recipe.amount || 1),
+    missing,
+    cities: cities || '—',
+  };
+}
+
 /** Which ingredients can be bought cheapest where — for craft planning. */
 export function cheapestCityFor(recipe: Recipe, prices: MarketPrice[], buyMode: PriceMode = 'instant'): { id: string; city: string; unitPrice: number }[] {
   return recipe.resources.map((r) => {

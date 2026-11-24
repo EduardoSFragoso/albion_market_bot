@@ -3,6 +3,7 @@
 import {
   searchItems, getItem, getRecipe, displayName,
   calcBestFlip, calcCraft, rankUniverse, scoreCraftItem,
+  compareEnchants, craftMaterialCost, enchantFamilyIds,
 } from '../src/index.ts';
 import type { MarketPrice } from '../src/types.ts';
 
@@ -38,9 +39,12 @@ const prices: MarketPrice[] = [
   mk('T4_CLOTH_LEVEL1@1', 'Bridgewatch', 400, 300),
   mk('T4_LEATHER_LEVEL1@1', 'Lymhurst', 420, 350),
   mk('T4_RUNE', 'Caerleon', 60, 55),
+  mk('T4_CLOTH', 'Bridgewatch', 150, 100), // para a receita base T4_BAG (8x cloth cru)
+  mk('T4_LEATHER', 'Bridgewatch', 180, 120),
+  mk('T4_BAG', 'Bridgewatch', 9500, 7900),
+  mk('T4_BAG@1', 'Narnia', 999999, 1), // fake city, live price — must NOT leak into picks
   mk('T4_BAG@1', 'Black Market', 0, 11000),
   mk('T4_BAG@1', 'Bridgewatch', 9500, 7900),
-  mk('T4_BAG@1', 'Narnia', 999999, 1), // fake city, live price — must NOT leak into picks
 ];
 const craft = calcCraft({
   itemId: 'T4_BAG@1', recipe: gRecipe, prices, buyCity: 'Bridgewatch', sellCity: 'Black Market',
@@ -55,8 +59,8 @@ eq(craft.profitPctOfCost, (revenue - matCost) / matCost, 'craft profitPctOfCost'
 assert(craft.materials.every((m) => m.usedCity !== 'Narnia'), 'cidades fake ignoradas');
 assert(craft.materials.find((m) => m.id === 'T4_RUNE')!.usedCity === 'Caerleon', 'rune comprada onde tem preço (fallback)');
 
-// ---- flip: best route ----
-const flip = calcBestFlip({ prices: [prices[3], prices[4], prices[5]], settings: { salesTaxPct: 4, setupFeePct: 0 } });
+// ---- flip: best route (rows de T4_BAG@1) ----
+const flip = calcBestFlip({ prices: [prices[6], prices[7], prices[8]], settings: { salesTaxPct: 4, setupFeePct: 0 } });
 assert(flip !== null && flip.profitPerUnit > 0 && flip.sellCity === 'Narnia', 'flip acha a melhor cidade', JSON.stringify(flip));
 const flipStale = calcBestFlip({ prices: [
   mk('T4_RUNE', 'Caerleon', 60, 55, true),
@@ -89,10 +93,42 @@ assert(best !== null && best.sellCity === 'Black Market' && best.salePrice === 1
 // parcial: sem preço da rune → requireComplete descarta (não vira lucro gratuito)
 const partial = scoreCraftItem(bag, gRecipe, [prices[0], prices[1], prices[3]], opt);
 assert(partial === null, 'requireComplete descarta item com ingrediente sem preço');
-const partialOk = scoreCraftItem(bag, gRecipe, [prices[0], prices[1], prices[3]], { ...opt, requireComplete: false });
+const partialOk = scoreCraftItem(bag, gRecipe, [prices[0], prices[1], prices[7]], { ...opt, requireComplete: false });
 assert(partialOk !== null && partialOk.missing.includes('T4_RUNE'), 'sem requireComplete marca missing');
 // nada precificado → null
 assert(scoreCraftItem(bag, gRecipe, [prices[3]], opt) === null, 'item sem nenhum ingrediente precificado = null');
+
+// ---- enchant: comprar pronto vs. craftar ----
+// soma por material (RRR por linha) difere de matCost por ~1e-12 → tolerância
+eq(craftMaterialCost(gRecipe, prices, { buyMode: 'instant', rrr: 0.152 }).cost, matCost, 'craftMaterialCost alinhado com calcCraft');
+const fam = enchantFamilyIds('T4_BAG');
+assert(fam.length === 4 && fam[3] === 'T4_BAG@3', 'família de encantamento T4_BAG → .0..@3');
+assert(enchantFamilyIds('T4_BAG@2').length === 4, 'aceita id com sufixo @n como entrada');
+
+// história: comprar o .1 pronto é mais barato que craftar (oferta BW 9500 vs custo 15331.84)
+const cmp = compareEnchants('T4_BAG', prices, { buyMode: 'instant', rrr: 0.152 });
+assert(cmp.length === 4, 'compareEnchants devolve 4 níveis');
+const row1 = cmp.find((r) => r.ench === 1)!;
+// comprar pronto = menor OFERTA viva (sell_price_min); BM aqui só paga 11000 (lance), não vende
+assert(row1.buyPrice === 9500 && row1.buyCity === 'Bridgewatch', 'comprar pronto = menor oferta viva (BW 9500)');
+eq(row1.craftCost, matCost, 'craft .1 = craftMaterialCost');
+assert(row1.cheaper === 'buy', 'veredito: comprar pronto é mais barato');
+eq(row1.savings, matCost - 9500, 'savings .1 = custo de craft - oferta');
+const row0 = cmp.find((r) => r.ench === 0)!;
+const cost0 = (8 * 150 + 8 * 180) * (1 - 0.152); // 8x T4_CLOTH + 8x T4_LEATHER, RRR
+assert(row0.buyPrice === 9500 && row0.cheaper === 'craft', '.0: craft dos crus é mais barato que comprar pronto');
+eq(row0.craftCost, cost0, '.0: craftCost = crus × RRR');
+// craft mais barato: oferta caríssima no .0 (ingredientes crus presentes)
+const expensive = compareEnchants('T4_BAG', [
+  mk('T4_CLOTH', 'Bridgewatch', 400, 300),
+  mk('T4_LEATHER', 'Lymhurst', 420, 350),
+  mk('T4_BAG', 'Bridgewatch', 99999, 0),
+], { buyMode: 'instant', rrr: 0 });
+const r0x = expensive.find((r) => r.ench === 0)!;
+assert(r0x.cheaper === 'craft' && r0x.savings < 0, 'veredito: craftar mais barato quando oferta é cara');
+// ingrediente sem preço → craft = null (não compara com custo parcial livre)
+const missingIng = compareEnchants('T4_BAG', [mk('T4_BAG', 'Bridgewatch', 9500, 7900), ...prices.filter((p) => p.item_id === 'T4_BAG')], { buyMode: 'instant', rrr: 0.152 })[0];
+assert(missingIng.craftCost === null && missingIng.missing.length === 2, 'ingrediente sem preço → sem veredito (não vira lucro grátis)');
 
 console.log(failed ? '\nSANITY FALHOU 💥' : '\nSanity OK ✅');
 if (failed) process.exit(1);

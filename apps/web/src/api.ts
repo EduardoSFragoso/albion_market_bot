@@ -1,5 +1,5 @@
 // typed client for /api/*
-import type { MarketPrice, LocationHistory, ItemIndexEntry, RankResult } from '@albion/core';
+import type { MarketPrice, LocationHistory, ItemIndexEntry, RankResult, EnchantRow } from '@albion/core';
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(path);
@@ -51,6 +51,10 @@ export const api = {
     if (args.enchants) p.set('enchants', args.enchants);
     return get<RankResult>(`/api/rank?${p}`);
   },
+  enchant: (args: { item: string; rrr: number; buyMode: 'instant' | 'order' }) =>
+    get<{ server: string; baseId: string; rows: EnchantRow[] }>(
+      `/api/enchant?item=${encodeURIComponent(args.item)}&rrr=${args.rrr}&buyMode=${args.buyMode}`,
+    ),
 };
 
 export type { MarketPrice, LocationHistory, ItemIndexEntry };

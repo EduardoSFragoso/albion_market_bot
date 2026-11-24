@@ -6,7 +6,7 @@
 // Env var AODP_SERVER selects west (default) | east | europe.
 import {
   fetchPrices, fetchHistory, searchItems, getItem, getRecipe,
-  calcCraft, calcBestFlip, cheapestCityFor, rankOpportunities, MAIN_CITIES,
+  calcCraft, calcBestFlip, cheapestCityFor, rankOpportunities, compareEnchants, enchantFamilyIds, MAIN_CITIES,
 } from '@albion/core';
 
 interface Env { AODP_SERVER?: string }
@@ -41,8 +41,26 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
       return json({
         service: 'albion-market-api',
         server,
-        endpoints: ['/api/search', '/api/prices', '/api/craft', '/api/flip', '/api/history', '/api/rank'],
+        endpoints: ['/api/search', '/api/prices', '/api/craft', '/api/flip', '/api/history', '/api/rank', '/api/enchant'],
       });
+    }
+
+    // Comprar pronto vs. craftar, por nível de encantamento (use o id base ou qualquer @n/LEVELn).
+    if (path === '/enchant') {
+      const itemParam = url.searchParams.get('item') ?? '';
+      const baseId = itemParam.replace(/@\d+$/, '');
+      if (!baseId || !getItem(baseId)) return bad('unknown item', 404);
+      const buyMode = url.searchParams.get('buyMode') === 'order' ? 'order' : 'instant';
+      const rrr = clamp(num(url.searchParams.get('rrr'), 0.152), 0, 0.6);
+
+      const family = enchantFamilyIds(baseId);
+      const ids = new Set<string>(family);
+      for (const fid of family) {
+        for (const r of getRecipe(fid)?.resources ?? []) ids.add(r.id);
+      }
+      const prices = await fetchPrices(server, [...ids], { locations: [...MAIN_CITIES], qualities: [1] });
+      const rows = compareEnchants(baseId, prices, { buyMode, rrr });
+      return json({ server, baseId, rows });
     }
 
     if (path === '/search') {

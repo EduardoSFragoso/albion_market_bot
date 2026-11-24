@@ -6,7 +6,7 @@
 import type { ItemIndexEntry, MarketPrice, Recipe } from '../types';
 import { ITEMS, RECIPES } from '../items';
 import { unitPrice, livePrice, type PriceMode } from './craft';
-import { cheapestCityFor } from './flip';
+import { cheapestCityFor, craftMaterialCost } from './flip';
 import { fetchPrices, MAIN_CITIES, type AodpServer } from '../api';
 
 export interface RankOptions {
@@ -94,14 +94,9 @@ export function scoreCraftItem(
   opts: Required<Pick<RankOptions, 'buyMode' | 'sellCity' | 'rrr' | 'salesTaxPct' | 'setupFeePct' | 'requireComplete'>>,
 ): RankEntry | null {
   const rows = prices.filter((p) => p.quality === 1);
-  const cheapest = cheapestCityFor(recipe, rows, opts.buyMode);
-  const missing = cheapest.filter((c) => c.unitPrice <= 0).map((c) => c.id);
+  const { cost: materialCost, missing } = craftMaterialCost(recipe, rows, { buyMode: opts.buyMode, rrr: opts.rrr });
   if (missing.length === recipe.resources.length) return null; // nothing priced at all
   if (opts.requireComplete && missing.length) return null;
-
-  const materialCost =
-    cheapest.reduce((s, c, i) => s + c.unitPrice * recipe.resources[i].count * (1 - opts.rrr), 0) /
-    (recipe.amount || 1);
 
   // Sale: instant sell (buy_price_max) at sellCity, or best live bid across cities.
   const outRows = rows.filter((p) => p.item_id === item.id && livePrice(p));
@@ -119,7 +114,7 @@ export function scoreCraftItem(
 
   const netPrice = salePrice * (1 - opts.salesTaxPct / 100) * (1 - opts.setupFeePct / 100);
   const profit = netPrice - materialCost;
-  const buyCity = [...new Set(cheapest.map((c) => (c.city === '—' ? [] : [c.city])).flat())].join('+') || '—';
+  const buyCity = [...new Set(cheapestCityFor(recipe, rows, opts.buyMode).map((c) => (c.city === '—' ? [] : [c.city])).flat())].join('+') || '—';
 
   return {
     itemId: item.id, en: item.en, pt: item.pt,
