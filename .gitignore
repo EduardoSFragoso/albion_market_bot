@@ -5,4 +5,4 @@ dist/
 .scratch/
 *.local
 .DS_Store
-.env
+.env*
