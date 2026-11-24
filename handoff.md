@@ -132,7 +132,7 @@ Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper
 | 4 | CI (GitHub Actions) + dependabot + template de PR (arquivos); configurar remoto e ativar ruleset é manual | ✅ arquivos criados |
 | 5 | Deploy (Pages + Workers + secrets): **manual, quando o usuário mandar** | bloqueado por decisão do usuário |
 | 6 | Comparação de encantamento (`enchant.ts` no core + `/api/enchant` + aba Encantamento + `/encantamento` no bot) | ✅ feito |
-| 7 | Scan daemon e favoritos/alertas (precisam de estado persistido: D1/KV) | fora do escopo atual (decisão do usuário) |
+| 7 | Scan daemon (Node + albiondata-client local) | ideia no roadmap — só retomar quando o usuário pedir |
 
 ## 8. Histórico estrutural
 
