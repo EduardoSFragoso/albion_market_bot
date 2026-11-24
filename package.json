@@ -1,0 +1,22 @@
+{
+  "name": "albion-market-bot",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build:data": "npm run build --workspace @albion/core",
+    "build:web": "npm run build --workspace @albion/web",
+    "build:bot": "npm run build --workspace @albion/bot",
+    "dev:web": "npm run dev --workspace @albion/web",
+    "dev:bot": "npm run dev --workspace @albion/bot",
+    "bot:register": "npm run register --workspace @albion/bot",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

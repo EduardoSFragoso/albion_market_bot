@@ -1,0 +1,8 @@
+# apps/web — Cloudflare Pages (site + API Functions)
+
+name = "albion-market-web"
+compatibility_date = "2024-09-23"
+pages_build_output_dir = "dist"
+
+[vars]
+AODP_SERVER = "west"
