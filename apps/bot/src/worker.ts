@@ -151,6 +151,7 @@ const InteractionResponseType = {
 const COLOR_OK = 0x22c55e;
 const COLOR_BAD = 0xef4444;
 const COLOR_INFO = 0x5865f2;
+const MAX_SIGNATURE_AGE_MS = 5 * 60 * 1000;
 
 interface EmbedField {
   name: string;
@@ -302,6 +303,10 @@ async function verifyDiscordSignature(
   const sigHex = request.headers.get('x-signature-ed25519') ?? '';
   const timestamp = request.headers.get('x-signature-timestamp') ?? '';
   if (!env.DISCORD_PUBLIC_KEY || !/^[0-9a-fA-F]{128}$/.test(sigHex) || !/^\d+$/.test(timestamp)) {
+    return false;
+  }
+  const timestampMs = Number(timestamp) * 1000;
+  if (!Number.isFinite(timestampMs) || Math.abs(Date.now() - timestampMs) > MAX_SIGNATURE_AGE_MS) {
     return false;
   }
   const enc = new TextEncoder();

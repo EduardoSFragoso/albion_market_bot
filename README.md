@@ -28,6 +28,25 @@ npm run build:data   # gera packages/core/src/data/{items,recipes}.json (já vem
 npm run dev:web      # site em http://localhost:5173
 ```
 
+Para validar as mudanças localmente (Node 24, como na CI):
+
+```bash
+npm run typecheck
+npx tsc --noEmit -p packages/core/tsconfig.json
+npm run test:bot
+npm run test:api-cache
+npm run test:web-validation
+npx tsx packages/core/test/sanity.ts
+npm run build:web
+```
+
+Os testes do bot verificam assinatura, PING e janela temporal de cinco minutos. Os
+testes do core cobrem deduplicação de chamadas simultâneas e limite de 256 entradas
+no cache; os da API web cobrem formato e limites de entrada.
+
+No PowerShell, se a política local bloquear `npm.ps1`/`npx.ps1`, use `npm.cmd` e
+`npx.cmd` nos mesmos comandos.
+
 Para testar a API localmente junto do site:
 
 ```bash
@@ -67,7 +86,8 @@ Depois disso o bot responde `/preco T4_BAG`, `/craft item:T5_CLOTH`, `/lucro ite
 ## Limitações conhecidas
 
 - Dados de mercado dependem de **scans da comunidade**: itens muito parados aparecem sem preço ou desatualizados (os painéis alertam quando os dados são antigos, e a calculadora de craft usa fallback com a cidade mais barata com dado vivo).
-- A API do AODP tem throttle — o site e o bot consultam com cache (60s no site, 90s na API client).
+- A API do AODP tem throttle — o site e o bot consultam com cache (60s no site, 90s na API client). O cache do core retém até 256 chaves e compartilha chamadas simultâneas idênticas.
+- A API rejeita buscas acima de 100 caracteres, mais de 200 IDs por pedido, IDs de mercado inválidos ou acima de 100 caracteres, cidades fora das cidades principais e qualidades fora de 1–5.
 - A taxa de custo do uso da estação (usage fee variável por estação) **não** está incluída no modelo do craft; o desconto é manual (compare com o custo no jogo).
 - Bot em Workers: sem *gateway*, então sem mensagem proativa/alertas automáticos — só responde a slash commands.
 

@@ -8,6 +8,10 @@ import {
   fetchPrices, fetchHistory, searchItems, getItem, getRecipe,
   calcCraft, calcBestFlip, cheapestCityFor, rankOpportunities, compareEnchants, enchantFamilyIds, MAIN_CITIES,
 } from '@albion/core';
+import {
+  isMarketItemId, isSearchQueryValid, MAX_LOCATIONS, MAX_PRICE_ITEMS,
+  parseCommaList, parseQualities,
+} from '../../api-validation';
 
 interface Env { AODP_SERVER?: string }
 
@@ -18,7 +22,8 @@ const num = (v: string | null, d: number) => {
   return Number.isFinite(n) ? n : d;
 };
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
-const list = (v: string | null) => (v ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+const parseLocations = (v: string | null) =>
+  parseCommaList(v, MAX_LOCATIONS, (location) => (MAIN_CITIES as readonly string[]).includes(location));
 
 export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
   const url = new URL(request.url);
@@ -65,17 +70,24 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
 
     if (path === '/search') {
       const q = url.searchParams.get('q') ?? '';
-      const locale = (url.searchParams.get('locale') ?? 'en') as 'pt' | 'en';
+      if (!isSearchQueryValid(q)) return bad('query too long');
+      const localeParam = url.searchParams.get('locale');
+      if (localeParam !== null && localeParam !== 'pt' && localeParam !== 'en') return bad('invalid locale');
+      const locale = (localeParam ?? 'en') as 'pt' | 'en';
       const limit = clamp(num(url.searchParams.get('limit'), 12), 1, 30);
       if (!q.trim()) return json({ results: [] });
       return json({ results: searchItems(q, { locale, limit }) });
     }
 
     if (path === '/prices') {
-      const items = list(url.searchParams.get('items'));
+      const items = parseCommaList(url.searchParams.get('items'), MAX_PRICE_ITEMS, isMarketItemId);
+      if (items === null) return bad('invalid items');
       if (!items.length) return bad('missing items');
-      const qualities = list(url.searchParams.get('qualities')).map(Number).filter((n) => n > 0);
-      const prices = await fetchPrices(server, items, { locations: list(url.searchParams.get('locations')), qualities: qualities.length ? qualities : [1] });
+      const locations = parseLocations(url.searchParams.get('locations'));
+      if (locations === null) return bad('invalid locations');
+      const qualities = parseQualities(url.searchParams.get('qualities'));
+      if (qualities === null) return bad('invalid qualities');
+      const prices = await fetchPrices(server, items, { locations, qualities: qualities.length ? qualities : [1] });
       return json({ server, prices });
     }
 
@@ -104,6 +116,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
     if (path === '/flip') {
       const itemId = url.searchParams.get('item') ?? '';
       if (!itemId) return bad('missing item');
+      if (!isMarketItemId(itemId)) return bad('invalid item');
       const salesTaxPct = clamp(num(url.searchParams.get('salesTax'), 8), 0, 25);
       const setupFeePct = clamp(num(url.searchParams.get('setupFee'), 2.5), 0, 10);
       const prices = await fetchPrices(server, [itemId], { locations: [...MAIN_CITIES], qualities: [1] });
@@ -116,7 +129,9 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
       // free Workers/Pages allow ~50 subrequests — maxItems 1200 @ chunk 200 = ~11 chunks, safe.
       const tierMin = clamp(num(url.searchParams.get('tierMin'), 4), 1, 8);
       const tierMax = clamp(num(url.searchParams.get('tierMax'), 6), tierMin, 8);
-      const enchants = list(url.searchParams.get('enchants')).map(Number).filter((n) => n >= 0 && n <= 3);
+      const enchantParams = parseCommaList(url.searchParams.get('enchants'), 4, (value) => /^[0-3]$/.test(value));
+      if (enchantParams === null) return bad('invalid enchants');
+      const enchants = enchantParams.map(Number);
       const maxItems = clamp(num(url.searchParams.get('maxItems'), 1200), 1, 1500);
       const buyMode = url.searchParams.get('buyMode') === 'order' ? 'order' : 'instant';
       const sellCity = url.searchParams.get('sellCity') || 'Black Market';
@@ -136,11 +151,15 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
     if (path === '/history') {
       const itemId = url.searchParams.get('item') ?? '';
       if (!itemId) return bad('missing item');
+      if (!isMarketItemId(itemId)) return bad('invalid item');
       const days = clamp(num(url.searchParams.get('days'), 14), 1, 30);
       const ts = num(url.searchParams.get('timeScale'), 24);
       const timeScale = (ts === 1 || ts === 6 ? ts : 24) as 1 | 6 | 24;
-      const qualities = list(url.searchParams.get('qualities')).map(Number).filter((n) => n > 0);
-      const history = await fetchHistory(server, [itemId], { locations: list(url.searchParams.get('locations')), qualities: qualities.length ? qualities : [1], timeScale, days });
+      const locations = parseLocations(url.searchParams.get('locations'));
+      if (locations === null) return bad('invalid locations');
+      const qualities = parseQualities(url.searchParams.get('qualities'));
+      if (qualities === null) return bad('invalid qualities');
+      const history = await fetchHistory(server, [itemId], { locations, qualities: qualities.length ? qualities : [1], timeScale, days });
       return json({ server, history });
     }
 

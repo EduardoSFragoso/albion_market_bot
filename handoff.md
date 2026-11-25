@@ -26,7 +26,7 @@ Site     ─┘         └─► packages/core (@albion/core) ──► west.al
 ```
 packages/core/            @albion/core
   scripts/build-data.mjs  baixa dumps (ao-data/ao-bin-dumps) e gera src/data/*.json
-  src/api.ts              fetchPrices/fetchHistory/fetchGold, MAIN_CITIES (cache em memória: preços 90s, história 600s, gold 300s)
+  src/api.ts              fetchPrices/fetchHistory/fetchGold, MAIN_CITIES (cache LRU em memória: até 256 chaves; preços 90s, história 600s, gold 300s; chamadas idênticas concorrentes são deduplicadas)
   src/items.ts            índice de itens + RECIPES, searchItems (aceita sufixo .1/@n), displayName (pt/en), iconUrl
   src/calc/craft.ts       calcCraft, cheapestCityFor, unitPrice/livePrice, RRR_PRESETS, SALES_TAX, SETUP_FEE
   src/calc/flip.ts        calcBestFlip, calcFlipBetween, craftMaterialCost (custo de materiais por cidade mais barata, RRR)
@@ -40,7 +40,7 @@ apps/web/                 site (Vite + React + Tailwind v4)
   src/components/         SearchBar, PriceTable, PricesPanel, CraftPanel, FlipPanel, HistoryPanel, OpportunitiesPanel, EnchantPanel
   src/i18n.ts             dicionário PT/EN (site tem toggle de idioma + tema claro/escuro)
 apps/bot/                 Worker puro (sem SDK): Ed25519 + comandos /preco /craft /lucro /encantamento /oportunidades
-  src/worker.ts           verificação de assinatura, PING, handlers (embeds PT-BR); /oportunidades usa DEFERRED (type 5) + followup via webhook da interação
+  src/worker.ts           verificação de assinatura com janela temporal de ±5 min, PING, handlers (embeds PT-BR); /oportunidades usa DEFERRED (type 5) + followup via webhook da interação
   scripts/register-commands.mjs   registra os 5 comandos (PUT /applications/<id>/commands)
 docs/                     auditoria-infra.md, configuracao-repositorio.md, scan-daemon.md (guia; execução manual)
 ```
@@ -60,6 +60,9 @@ vêm de `/api/search`.
 | `npm run typecheck` | tsc em todos os workspaces |
 | `npx vite build` em apps/web | build do site (o que o Pages publica) |
 | `npx tsx packages/core/test/sanity.ts` | sanity do core |
+| `npm run test:bot` | testes de assinatura Discord, PING e janela temporal |
+| `npm run test:api-cache` | deduplicação de fetch e limite do cache do core |
+| `npm run test:web-validation` | limites e validação de entradas da API web |
 
 Antes de declarar tarefa pronta: typecheck + build web + sanity (regra do AGENTS.md).
 
@@ -73,8 +76,8 @@ Respostas JSON com `content-type`, CORS `*`,
 | Endpoint | Params principais | Resposta |
 |---|---|---|
 | `/api/` | — | `{ service, server, endpoints }` |
-| `/api/search` | `q, locale=pt\|en, limit (1-30)` | `{ results: ItemIndexEntry[] }` |
-| `/api/prices` | `items=id1,id2, locations=, qualities=` | `{ server, prices: MarketPrice[] }` |
+| `/api/search` | `q (≤100 chars), locale=pt\|en, limit (1-30)` | `{ results: ItemIndexEntry[] }` |
+| `/api/prices` | `items` (1–200 IDs), `locations` (MAIN_CITIES, até 8), `qualities` (1–5) | `{ server, prices: MarketPrice[] }` |
 | `/api/craft` | `item, buyCity, sellCity, buyMode=instant\|order, salesTax, setupFee, rrr` | `{ server, item, recipe, buyCity, sellCity, result: CraftResult, cheapest }`; `error:'no-recipe'` quando sem receita; 404 item desconhecido |
 | `/api/flip` | `item, salesTax, setupFee` | `{ server, item, prices, best: FlipResult\|null }` |
 | `/api/history` | `item, days (1-30), timeScale=1\|6\|24, locations=, qualities=` | `{ server, history }` |
@@ -82,6 +85,12 @@ Respostas JSON com `content-type`, CORS `*`,
 | `/api/enchant` | `item (id ou id@n), buyMode=instant\|order, rrr` | `{ server, baseId, rows: EnchantRow[] }` — uma linha por nível .0–.3 existente; `craftCost/buyPrice: null` = sem dado vivo; sufixo `@n` no input é removido antes (usa `enchantBaseId`) |
 
 Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper `num` trata `null`/`''` explicitamente — `Number(null)=0` já enganou uma vez: `/api/rank` primeira versão capava o universo em 1 item). Erros: `{ error: string }` com status 400/404/502 (nunca stack trace).
+
+Limites atuais da entrada: `search.q` até 100 caracteres; `/prices` aceita até 200 IDs
+por chamada; IDs podem ter até 100 caracteres e devem usar letras/números/`_` e
+sufixo opcional `@n`; cidades devem estar em `MAIN_CITIES`; qualidades vão de 1 a 5.
+Listas repetidas são deduplicadas. `/history` aplica os mesmos formatos de ID, cidade
+e qualidade; `/rank` aceita até quatro encantamentos entre 0 e 3.
 
 ### 4b. Semântica de preços e impostos (core)
 
@@ -104,6 +113,7 @@ Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper
 ### 4d. Bot do Discord
 
 - Assinatura Ed25519 via WebCrypto sobre `timestamp + body` raw; sem/ruim assinatura → 401. Nunca desativar.
+- O timestamp assinado precisa estar dentro de ±5 minutos do relógio do Worker; sincronização do relógio faz parte da validação do endpoint.
 - PING (`type:1`) → `{ type: 1 }`. `/preco`, `/craft`, `/lucro`, `/encantamento` respondem type 4 síncronos. **`/oportunidades` é DEFERRED** (type 5 imediato; o scan pode passar dos 3s do Discord) e edita a resposta via `PATCH /webhooks/<app_id>/<interaction_token>/messages/@original` — usa só o token da interação, sem bot token. Novos comandos demorados devem seguir esse padrão.
 - Nomes de item aceitam sufixo de encantamento (`.1`, `@2`) — resolvidos por `/api/search`.
 - `SITE_URL` aponta pro site (Pages); o bot usa os endpoints da 4a.
@@ -113,6 +123,7 @@ Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper
 
 - **Workers free ~1 MB gzip:** bot não importa os JSONs de dados; `rank` (planejado) precisa universar itens sem importar índice + chunking de fetch.
 - **Subrequests do Cloudflare (free):** sem paralelismo agressivo contra o AODP; chunking com paralelismo 4 e cache. `/api/rank` T4–T6 ≈ 7 chunks de 200 ids (limite free ~50 subrequests/invocação).
+- Cache do core limitado a 256 chaves LRU, com deduplicação de chamadas simultâneas iguais; os TTLs seguem acima.
 - **`wrangler pages dev` não recompila quando só `packages/core` muda** (core é symlink em node_modules, fora do watcher). Editar um arquivo de `functions/` força rebuild. Deploy em produção nunca deve pegar esse estado (build CI roda do zero).
 - **Dashboard Cloudflare (2026):** o fluxo "Create application" mostra um formulário de **Worker** (com "Deploy command: npx wrangler deploy") — o create de **Pages** clássico fica escondido atrás do link **"Continue to Pages"** (última linha das opções). No formulário certo de Pages não existe Deploy command, e sim Build output directory + Root directory.
 - **AODP é serviço comunitário:** sempre gzip, respeitar throttle (`Throttled, be nice...` volta non-JSON → tratar como erro, não quebrar). Cachear no core (TTLs acima: 90s/600s/300s).
@@ -123,6 +134,7 @@ Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper
 - **Rebase and merge gera SHAs novos**: para validar "esse branch já está na main" use `git cherry` (patch-id), **não** ancestralidade de SHA. Artefatos derivados (ex.: `src/data/*.json`) no MESMO commit do código que os gera.
 - Nunca commitar: `.dev.vars`, `.env*`, dumps, `dist/`, `node_modules/`.
 - Dependabot: minor/patch agrupados (dependabot.yml, automático); **majors 1 PR por vez, na ordem que o lockfile manda, com CI + Pages verdes** antes do próximo. PR recriado/fechado por supersessão é normal — não force reopen.
+- `actions/checkout` e `actions/setup-node` ficam fixados por SHA; Dependabot monitora atualizações de GitHub Actions.
 - Serviços externos/infra (Pages, Workers, secrets reais): só a pessoa mantenedora configura; o agente entrega comandos prontos.
 
 ## 7. Pendências / próximos passos
@@ -136,7 +148,7 @@ Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper
 | 5 | Deploy — site: Cloudflare Pages GIT-CONNECTED (root `apps/web`, build c/ `--prefix ../..`, output via `pages_build_output_dir`); bot: `npx wrangler deploy` + `wrangler secret put DISCORD_BOT_TOKEN`; Interactions Endpoint validado (PING verde) | ✅ no ar (2026-11) |
 | 6 | Comparação de encantamento (`enchant.ts` no core + `/api/enchant` + aba Encantamento + `/encantamento` no bot) | ✅ feito |
 | 7 | Scan daemon — **não há código a escrever**: guia em docs/scan-daemon.md (instalar cliente da comunidade + rotina de varredura manual). Execução é na máquina do usuário; nada disso é deployável pelo agente | ✅ guia entregue |
-| 8 | Migrar o runtime do bot (Worker) pra VM própria (gateway/VPS) — só quando o usuário disser que tudo tá rodando redondo; exige hospedar o servidor HTTP de interactions + endpoint URL nova | pendência futura (só a pedido) |
+| 8 | Migrar o runtime do bot (Worker) pra **máquina local com Linux** (decisão 2026-11) — desenho ainda a definir; abre com a escolha de acesso: webhook + Cloudflare Tunnel (mantém HTTP puro, mínimo de código novo) vs. gateway websocket (nada exposto, mas BOT_TOKEN passa a viver na VM e o código é novo). Só executar quando o usuário disser que tem servidor preparado; nada foi preparado ainda | pendência futura (só a pedido) |
 | 9 | Majors do dependabot, 1 PR por vez: vite 8, @vitejs/plugin-react 6, react-dom 19, @cloudflare/workers-types 5, wrangler 4.166 (undici/esbuild/@fastify/busboy cobertos de brinde) — alertas de vuln zerados, CodeQL como check obrigatório do ruleset | ✅ feito (2026-11) |
 | 10 | Re-deploy do bot com wrangler 4 (`npx wrangler deploy` em apps/bot) + smoke `/preco` no Discord | ✅ feito (2026-11; worker 200 no healthcheck) |
 
