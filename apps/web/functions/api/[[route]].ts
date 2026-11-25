@@ -146,6 +146,9 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
 
     return bad(`unknown endpoint ${path}`, 404);
   } catch (err) {
-    return json({ error: err instanceof Error ? err.message : String(err) }, 502);
+    // Detalhe só no log do servidor — a mensagem do erro cru pode expor
+    // caminhos/internals (CodeQL js/stack-trace-exposure).
+    console.error(`/api${path} falhou:`, err);
+    return json({ error: 'upstream error' }, 502);
   }
 };
