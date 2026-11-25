@@ -91,14 +91,16 @@ export default function OpportunitiesPanel({ locale, premium, onOpen }: Props) {
 
       {entries && entries.length > 0 && (
         <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
-          <table className="w-full min-w-[560px] text-sm">
+          {/* table-fixed: a coluna do item não pode empurrar as demais —
+              a última (COMPRAR EM) saía da viewport. Percentuais fixos + truncate. */}
+          <table className="w-full table-fixed text-sm">
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
-                <th className="px-3 py-2.5">#{t(locale, 'item')}</th>
-                <th className="px-3 py-2.5 text-right">{t(locale, 'materialCost')}</th>
-                <th className="px-3 py-2.5 text-right">{t(locale, 'netPrice')}</th>
-                <th className="px-3 py-2.5 text-right">{t(locale, 'profit')}</th>
-                <th className="px-3 py-2.5 text-right">{t(locale, 'buyMaterialsIn')}</th>
+                <th className="w-[38%] px-3 py-2.5">#{t(locale, 'item')}</th>
+                <th className="w-[14%] px-3 py-2.5 text-right">{t(locale, 'materialCost')}</th>
+                <th className="w-[14%] px-3 py-2.5 text-right">{t(locale, 'netPrice')}</th>
+                <th className="w-[18%] px-3 py-2.5 text-right">{t(locale, 'profit')}</th>
+                <th className="w-[16%] px-3 py-2.5 text-right">{t(locale, 'buyMaterialsIn')}</th>
               </tr>
             </thead>
             <tbody>
@@ -110,22 +112,24 @@ export default function OpportunitiesPanel({ locale, premium, onOpen }: Props) {
                 >
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-2.5">
-                      <span className="w-6 text-right text-xs tabular-nums text-zinc-400">{i + 1}</span>
+                      <span className="w-6 shrink-0 text-right text-xs tabular-nums text-zinc-400">{i + 1}</span>
                       <img src={iconUrl(r.itemId, 64)} alt="" className="h-8 w-8 shrink-0" />
                       <div className="min-w-0">
                         <div className="truncate font-medium text-zinc-800 dark:text-zinc-200">{displayName(r.itemId, locale)}</div>
-                        <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                        <div className="truncate text-xs text-zinc-500 dark:text-zinc-400">
                           T{r.tier}{r.ench ? `.${r.ench}` : ''} · {r.sellCity}
                         </div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-zinc-600 dark:text-zinc-300">{fmt(r.materialCost)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-zinc-600 dark:text-zinc-300">{fmt(r.netPrice)}</td>
-                  <td className={`px-3 py-2 text-right font-semibold tabular-nums ${r.profit > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
+                  <td className="overflow-hidden text-ellipsis whitespace-nowrap px-3 py-2 text-right tabular-nums text-zinc-600 dark:text-zinc-300">{fmt(r.materialCost)}</td>
+                  <td className="overflow-hidden text-ellipsis whitespace-nowrap px-3 py-2 text-right tabular-nums text-zinc-600 dark:text-zinc-300">{fmt(r.netPrice)}</td>
+                  <td className={`overflow-hidden text-ellipsis whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums ${r.profit > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
                     {r.profit > 0 ? '+' : ''}{fmt(r.profit)} <span className="font-normal text-xs">({(r.profitPct * 100).toFixed(0)}%)</span>
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-zinc-500 dark:text-zinc-400">{r.buyCity}</td>
+                  <td className="overflow-hidden px-3 py-2 text-right" title={r.buyCity}>
+                    <span className="inline-block max-w-full truncate tabular-nums text-zinc-500 dark:text-zinc-400">{r.buyCity}</span>
+                  </td>
                 </tr>
               ))}
             </tbody>
