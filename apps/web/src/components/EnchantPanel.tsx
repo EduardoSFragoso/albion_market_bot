@@ -71,7 +71,7 @@ export default function EnchantPanel({ itemId, locale }: Props) {
               <tr key={r.outputId} className="border-b border-zinc-100 last:border-0 dark:border-zinc-800/60">
                 <td className="px-3 py-2">
                   <div className="flex items-center gap-2.5">
-                    <img src={iconUrl(r.outputId, 1)} alt="" className="h-8 w-8 shrink-0" />
+                    <img src={iconUrl(r.outputId, 16)} alt="" className="h-8 w-8 shrink-0" />
                     <div>
                       <div className="font-medium text-zinc-800 dark:text-zinc-200">.{r.ench}</div>
                       <div className="text-xs text-zinc-500 dark:text-zinc-400">{r.pt || r.en}</div>

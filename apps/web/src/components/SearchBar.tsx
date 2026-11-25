@@ -63,7 +63,7 @@ export default function SearchBar({ onSelect, locale }: Props) {
               onMouseEnter={() => setHi(i)}
               className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm ${i === hi ? 'bg-amber-50 dark:bg-zinc-800' : ''}`}
             >
-              <img src={iconUrl(item.id, 1)} alt="" className="h-8 w-8 shrink-0" loading="lazy" />
+              <img src={iconUrl(item.id, 16)} alt="" className="h-8 w-8 shrink-0" loading="lazy" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium text-zinc-800 dark:text-zinc-100">
                   {item.ench > 0 ? `${(locale === 'pt' ? item.pt || item.en : item.en || item.pt)} .${item.ench}` : (locale === 'pt' ? item.pt || item.en : item.en || item.pt)}

@@ -50,7 +50,7 @@ export default function FlipPanel({ itemId, locale, premium }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <img src={iconUrl(itemId, 3)} alt="" className="h-12 w-12" />
+        <img src={iconUrl(itemId, 64)} alt="" className="h-12 w-12" />
         {best && best.profitPerUnit > 0 ? (
           <div>
             <div className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{t(locale, 'bestFlip')}</div>

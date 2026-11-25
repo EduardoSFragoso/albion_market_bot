@@ -145,7 +145,7 @@ export default function CraftPanel({ item, locale, premium }: Props) {
                     <tr key={m.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-800/60">
                       <td className="px-4 py-2.5">
                         <span className="flex items-center gap-2">
-                          <img src={iconUrl(m.id, 1)} alt="" className="h-7 w-7" loading="lazy" />
+                          <img src={iconUrl(m.id, 16)} alt="" className="h-7 w-7" loading="lazy" />
                           <span>
                             <span className="block font-medium text-zinc-800 dark:text-zinc-200">{displayName(m.id, locale)}</span>
                             {m.fallbackCity && (
