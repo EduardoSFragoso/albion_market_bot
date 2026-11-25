@@ -20,7 +20,9 @@ export function displayName(id: string, locale: 'pt' | 'en' = 'en'): string {
 }
 
 /** Icon from Albion's official render service. size: 1|3|8 (multiples of 64px). */
-export function iconUrl(id: string, size: 1 | 3 | 8 = 3): string {
+// O CDN de render (render.albiononline.com) só aceita hoje 16/64/128 — os tamanhos
+// 1/3/8 da era antiga respondem HTTP 500 (verificado 2026-11).
+export function iconUrl(id: string, size: 16 | 64 | 128 = 64): string {
   return `https://render.albiononline.com/v1/item/${encodeURIComponent(id)}.png?size=${size}&quality=1`;
 }
 

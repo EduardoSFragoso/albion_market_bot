@@ -178,7 +178,7 @@ interface MessageData {
 const D = (n: number, max = 0) =>
   new Intl.NumberFormat('pt-BR', { maximumFractionDigits: max }).format(n);
 
-const iconUrl = (id: string, size: 1 | 3 | 8 = 3): string =>
+const iconUrl = (id: string, size: 16 | 64 | 128 = 64): string =>
   `https://render.albiononline.com/v1/item/${encodeURIComponent(id)}.png?size=${size}&quality=1`;
 
 /** Enchant como sufixo ".n": T5_BAG@3 (ou nome com ench=3) → "… .3". */
@@ -369,23 +369,34 @@ async function cmdPreco(env: Env, options: InteractionOption[] | undefined): Pro
   const cheapest = rows.filter((r) => r.sellPriceMin > 0).sort((a, b) => a.sellPriceMin - b.sellPriceMin)[0];
   const bestSell = rows.filter((r) => r.buyPriceMax > 0).sort((a, b) => b.buyPriceMax - a.buyPriceMax)[0];
 
-  const header = 'Cidade         │ Vender por │ Comprar por';
+  // Vocabulário = ação do usuário. "Comprar agora" é a menor OFERTA (sell_price_min);
+  // "Vender agora" é o maior LANCE vivo (buy_price_max) — era isso que os antigos
+  // rótulos "Vender por"/"Comprar por" embaralhavam.
+  const header = 'Cidade       | Comprar agora | Vender agora';
   const lines = rows.map((r) => {
     const city = r.city.padEnd(14, ' ');
-    const sell = r.sellPriceMin > 0 ? D(r.sellPriceMin).padStart(9, ' ') : '     —   ';
-    const buy = r.buyPriceMax > 0 ? D(r.buyPriceMax).padStart(9, ' ') : '     —   ';
+    const buy = r.sellPriceMin > 0 ? D(r.sellPriceMin).padStart(10, ' ') : '        —  ';
+    const sell = r.buyPriceMax > 0 ? D(r.buyPriceMax).padStart(10, ' ') : '        —  ';
     let marker = '';
-    if (cheapest && r.city === cheapest.city) marker = ' ◀ comprar';
-    else if (bestSell && r.city === bestSell.city) marker = ' ◀ vender';
-    return `${city}│ ${sell} │ ${buy}${marker}`;
+    if (cheapest && r.city === cheapest.city) marker = ' 🛒';
+    else if (bestSell && r.city === bestSell.city) marker = ' 💰';
+    return `${city}|${buy}|${sell}${marker}`;
   });
 
-  const fields: EmbedField[] = [
-    {
-      name: 'Preços por cidade',
-      value: `\`\`\`\n${header}\n${'─'.repeat(header.length)}\n${lines.join('\n')}\n\`\`\``,
-    },
-  ];
+  const fields: EmbedField[] = [];
+  if (cheapest || bestSell) {
+    fields.push({
+      name: '⚡ Resumo',
+      value: [
+        cheapest ? `🛒 Comprar agora: **${cheapest.city}** (${D(cheapest.sellPriceMin)})` : null,
+        bestSell ? `💰 Vender agora: **${bestSell.city}** (${D(bestSell.buyPriceMax)})` : null,
+      ].filter(Boolean).join('\n'),
+    });
+  }
+  fields.push({
+    name: 'Preços por cidade',
+    value: `\`\`\`\n${header}\n${'─'.repeat(header.length)}\n${lines.join('\n')}\n\`\`\``,
+  });
 
   // Melhor rota (flip): compra instantânea → venda em ordem, com impostos.
   try {
@@ -399,7 +410,7 @@ async function cmdPreco(env: Env, options: InteractionOption[] | undefined): Pro
       fields.push({
         name: '🚚 Melhor rota',
         value:
-          `Compre em **${best.buyCity}**, venda em **${best.sellCity}** ` +
+          `Compre em **${best.buyCity}** (instantâneo), venda em **${best.sellCity}** (por ordem) ` +
           `(${sinal}${D(best.profitPerUnit)} lucro/unid., ${D(best.profitPct * 100, 1)}%)`,
       });
     } else {
@@ -415,9 +426,9 @@ async function cmdPreco(env: Env, options: InteractionOption[] | undefined): Pro
       {
         title: `${name} — preços`,
         color: COLOR_INFO,
-        thumbnail: { url: iconUrl(id, 3) },
+        thumbnail: { url: iconUrl(id, 64) },
         fields,
-        footer: { text: `Qualidade ${quality} · Compra instantânea (menor oferta) · Venda por ordem (maior oferta de compra)` },
+        footer: { text: `Comprar agora = menor oferta (instantâneo) · Vender agora = maior lance (instantâneo) · Rota: compra instantânea → venda em ordem · Qualidade ${quality}` },
       },
     ],
   };
@@ -516,7 +527,7 @@ async function cmdCraft(env: Env, options: InteractionOption[] | undefined): Pro
       {
         title: `${name} — fabricação`,
         color: lucro >= 0 ? COLOR_OK : COLOR_BAD,
-        thumbnail: { url: iconUrl(id, 3) },
+        thumbnail: { url: iconUrl(id, 64) },
         fields,
         footer: {
           text: `Compra em ${buyCity} · Venda em ${sellCity} · RRR ${D(rrr * 100, 1)}% · Impostos base (${SALES_TAX_PCT}% + ${SETUP_FEE_PCT}%)`,
@@ -592,7 +603,7 @@ async function cmdLucro(env: Env, options: InteractionOption[] | undefined): Pro
         title: `${name} — top rotas de lucro`,
         description: 'Compra instantânea → venda em ordem, com impostos já descontados.',
         color: top[0].profit > 0 ? COLOR_OK : COLOR_BAD,
-        thumbnail: { url: iconUrl(id, 3) },
+        thumbnail: { url: iconUrl(id, 64) },
         fields: [
           { name: 'Top 5', value: `\`\`\`\n${lines.join('\n')}\n\`\`\`` },
           {
@@ -628,7 +639,7 @@ async function cmdOportunidades(env: Env, options: InteractionOption[] | undefin
     rrr: '0.152',
     salesTax: String(SALES_TAX_PCT),
     setupFee: String(SETUP_FEE_PCT),
-    topN: '10',
+    topN: '5',
   };
   if (ench !== undefined) params.enchants = String(clampInt(ench, 0, 3, 0));
 
@@ -642,23 +653,24 @@ async function cmdOportunidades(env: Env, options: InteractionOption[] | undefin
     };
   }
 
-  const lines = entries.map((e, i) => {
-    const name = (e.pt || e.en || e.itemId) + (e.ench ? ` .${e.ench}` : '');
-    return `${String(i + 1).padStart(2, ' ')}. ${name.padEnd(26).slice(0, 26)} T${e.tier}${e.ench ? `.${e.ench}` : ''} | custo ${D(e.materialCost)} → venda ${D(e.netPrice)} | ${e.profit >= 0 ? '+' : ''}${D(e.profit)} (${D(e.profitPct * 100, 1)}%)`;
-  });
+  // Compacto: top 5, uma linha por item (só nome + lucro) — o detalhado
+  // está no site; aqui o usuário quer o resumo seco.
+  const description = entries
+    .map((e, i) => {
+      const sinal = e.profit >= 0 ? '+' : '';
+      return `**${i + 1}.** ${(e.pt || e.en).slice(0, 40)}${e.ench ? ` .${e.ench}` : ''} (T${e.tier}) — ${e.profit >= 0 ? '✅' : '❌'} ${sinal}${D(e.profit)} (${D(e.profitPct * 100, 0)}%)`;
+    })
+    .join('\n');
 
   return {
     embeds: [
       {
         title: '🔎 Oportunidades de craft (Black Market)',
-        description: `Comprando materiais na cidade mais barata, venda no Black Market.\n\`\`\`\n${lines.join('\n')}\n\`\`\``,
+        description,
         color: entries[0].profit > 0 ? COLOR_OK : COLOR_BAD,
-        thumbnail: { url: iconUrl(entries[0].itemId, 3) },
-        fields: [
-          { name: '🥇 Top 1', value: `**${(entries[0].pt || entries[0].en)}${entries[0].ench ? ` .${entries[0].ench}` : ''}** — ${entries[0].profit >= 0 ? '+' : ''}${D(entries[0].profit)} lucro/unid. (${D(entries[0].profitPct * 100, 1)}% sobre o custo)` },
-        ],
+        thumbnail: { url: iconUrl(entries[0].itemId, 64) },
         footer: {
-          text: `T${tierMin}–T${tierMax}${ench !== undefined ? ` · encantamento .${ench}` : ''} · ${D(data.universeSize)} itens · RRR 15.2% · impostos base (${SALES_TAX_PCT}% + ${SETUP_FEE_PCT}%)`,
+          text: `Compra: cidade mais barata · Venda: Black Market · T${tierMin}–T${tierMax}${ench !== undefined ? ` · encantamento .${ench}` : ''} · detalhe completo no site`,
         },
       },
     ],
@@ -695,39 +707,36 @@ async function cmdEncantamento(env: Env, options: InteractionOption[] | undefine
   const rows = data.rows ?? [];
   if (!rows.length) return { content: `⚠️ Sem dados de encantamento para **${name}**.` };
 
-  const lines = rows.map((r) => {
-    const label = `.${r.ench}`;
-    const buy = r.buyPrice !== null ? `${D(r.buyPrice)} em ${r.buyCity}` : 'sem oferta viva';
-    const craft = r.craftCost !== null
-      ? D(r.craftCost)
-      : r.hasRecipe ? '⚠️ sem preço dos ingredientes' : '— (sem receita)';
+  // Um bloco por nível (inline=false, empilhado) — em vez do grid de
+  // quadradinhos que ficava difícil de comparar e ler.
+  const fields: EmbedField[] = rows.map((r) => {
+    const buyLine = r.buyPrice !== null
+      ? `🛒 comprar pronto: ${D(r.buyPrice)} (${r.buyCity})`
+      : '🛒 comprar pronto: sem oferta';
+    const craftLine = !r.hasRecipe
+      ? '🔨 craftar: — (sem receita)'
+      : r.craftCost !== null ? `🔨 craftar: ${D(r.craftCost)}` : '🔨 craftar: ⚠️ sem preço';
     let verdict: string;
-    if (r.cheaper === 'craft') verdict = `🔨 craftar ${D((r.savingsPct ?? 0) * 100, 1)}% mais barato`;
-    else if (r.cheaper === 'buy') verdict = `🛒 comprar pronto ${D((r.savingsPct ?? 0) * 100, 1)}% mais barato`;
-    else if (r.buyPrice !== null && r.craftCost !== null) verdict = '⚖️ empate';
-    else verdict = '? dados incompletos';
-    return `${label} | comprar ${buy} | craftar ${craft} → ${verdict}`;
+    if (r.cheaper === 'craft') verdict = `→ ✅ **craftar** ${D((r.savingsPct ?? 0) * 100, 1)}% mais barato`;
+    else if (r.cheaper === 'buy') verdict = `→ ✅ **comprar pronto** ${D((r.savingsPct ?? 0) * 100, 1)}% mais barato`;
+    else if (r.buyPrice !== null && r.craftCost !== null) verdict = '→ ⚖️ empate';
+    else verdict = '→ ⚠️ sem dados suficientes';
+    return { name: `Nível .${r.ench}`, value: `${buyLine}\n${craftLine}\n${verdict}`, inline: false };
   });
 
-  const priced = rows.filter((r) => r.cheaper !== null);
-  const fields: EmbedField[] = [
-    {
-      name: '🧮 Cada nível de encantamento',
-      value: `\`\`\`\n${lines.join('\n')}\n\`\`\``,
-    },
-  ];
-  if (rows.some((r) => r.missing.length > 0)) {
+  if (rows.some((r) => r.missing.length > 0 && r.craftCost === null)) {
     fields.push({
       name: '⚠️ Dado faltando',
-      value: 'Alguns ingredientes estão sem preço recente — nesses níveis a comparação fica incompleta.',
+      value: 'Nível sem veredito = ingrediente sem preço recente no mercado.',
     });
   }
+  const priced = rows.filter((r) => r.cheaper !== null);
   if (priced.length) {
     const best = priced.reduce((a, b) => ((b.savingsPct ?? 0) > (a.savingsPct ?? 0) ? b : a));
     const verb = best.cheaper === 'buy' ? 'Comprar pronto' : 'Craftar';
     fields.push({
       name: '🥇 Maior economia',
-      value: `**${verb} ${best.pt || best.en} .${best.ench}** — economiza ${D((best.savingsPct ?? 0) * 100, 1)}% (${D(Math.abs(best.savings ?? 0))} de prata).`,
+      value: `**${verb} .${best.ench}** — ${D((best.savingsPct ?? 0) * 100, 1)}% (${D(Math.abs(best.savings ?? 0))} de prata).`,
     });
   }
 
@@ -736,7 +745,7 @@ async function cmdEncantamento(env: Env, options: InteractionOption[] | undefine
       {
         title: `${withEnchSuffix(name, data.baseId)} — comprar pronto vs. craftar`,
         color: COLOR_INFO,
-        thumbnail: { url: iconUrl(data.baseId, 3) },
+        thumbnail: { url: iconUrl(data.baseId, 64) },
         fields,
         footer: {
           text: `Comprar = menor oferta viva em qualquer cidade (incl. Black Market) · Craftar = materiais mais baratos, RRR ${D(rrr * 100, 1)}% · sem estágio de retorno`,
