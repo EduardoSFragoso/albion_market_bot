@@ -119,9 +119,10 @@ Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper
 
 ## 6. Git
 
-- Commits na `main` (repo local, mantenedor único hoje); artefatos derivados (ex.: `src/data/*.json`) no MESMO commit do código que os gera.
+- Remoto `origin` (GitHub). Toda mudança entra via PR: ruleset da `main` exige **CI + CodeQL** (`Analyze (javascript-typescript)`) e o único método de merge é **Rebase and merge** (merge/squash commit desativados). Branch do PR é apagado após o merge.
+- **Rebase and merge gera SHAs novos**: para validar "esse branch já está na main" use `git cherry` (patch-id), **não** ancestralidade de SHA. Artefatos derivados (ex.: `src/data/*.json`) no MESMO commit do código que os gera.
 - Nunca commitar: `.dev.vars`, `.env*`, dumps, `dist/`, `node_modules/`.
-- Histórico de commits estruturais registrado aqui; quando entrar remoto, migração para PR está em docs/configuracao-repositorio.md.
+- Dependabot: minor/patch agrupados (dependabot.yml, automático); **majors 1 PR por vez, na ordem que o lockfile manda, com CI + Pages verdes** antes do próximo. PR recriado/fechado por supersessão é normal — não force reopen.
 - Serviços externos/infra (Pages, Workers, secrets reais): só a pessoa mantenedora configura; o agente entrega comandos prontos.
 
 ## 7. Pendências / próximos passos
@@ -136,6 +137,8 @@ Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper
 | 6 | Comparação de encantamento (`enchant.ts` no core + `/api/enchant` + aba Encantamento + `/encantamento` no bot) | ✅ feito |
 | 7 | Scan daemon — **não há código a escrever**: guia em docs/scan-daemon.md (instalar cliente da comunidade + rotina de varredura manual). Execução é na máquina do usuário; nada disso é deployável pelo agente | ✅ guia entregue |
 | 8 | Migrar o runtime do bot (Worker) pra VM própria (gateway/VPS) — só quando o usuário disser que tudo tá rodando redondo; exige hospedar o servidor HTTP de interactions + endpoint URL nova | pendência futura (só a pedido) |
+| 9 | Majors do dependabot, 1 PR por vez: vite 8, @vitejs/plugin-react 6, react-dom 19, @cloudflare/workers-types 5, wrangler 4.166 (undici/esbuild/@fastify/busboy cobertos de brinde) — alertas de vuln zerados, CodeQL como check obrigatório do ruleset | ✅ feito (2026-11) |
+| 10 | Re-deploy do bot com wrangler 4 (`npx wrangler deploy` em apps/bot) + smoke `/preco` no Discord | pendente (execução manual do mantenedor) |
 
 ## 8. Histórico estrutural
 
@@ -147,3 +150,4 @@ Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper
 | `0378b8a` | ranking de oportunidades (core rank + /api/rank + aba + /oportunidades) |
 | `2a965bf` | CI (ci.yml), dependabot, template de PR |
 | (este)    | comparação de encantamento (core enchant.ts + /api/enchant + aba Encantamento + /encantamento no bot) |
+| (2026-11) | deploy GitHub→Pages→Workers no ar; ícones 64px (CDN quebrou 16/8); embeds do bot redesenhados; majors: vite 8, plugin-react 6, react-dom 19, workers-types 5, wrangler 4.166; CodeQL no portão de merge (fix stack-trace em /api/*); licença MIT |

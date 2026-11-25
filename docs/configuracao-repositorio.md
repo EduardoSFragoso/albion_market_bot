@@ -29,11 +29,12 @@ GitHub → Settings → Branches → Add ruleset, para `main`:
 | Regra | Por quê |
 |---|---|
 | Require pull request before merging | Toda mudança passa por PR revisável |
-| Require status checks: **CI** (typecheck + build + sanity) | Merge só com a rede de segurança verde |
+| Require status checks: **CI** (typecheck + build + sanity) + **CodeQL** (`Analyze (javascript-typescript)`) | Merge só com a rede de segurança verde — testes + análise de vulnerabilidade de código |
 | Require linear history | Histórico limpo, fácil de reverter |
 | Block force pushes | Impossibilita histórico reescrito por acidente |
 
-O fluxo natural fica: mudança → branch → PR → **CI verde** → merge em `main`.
+O fluxo natural fica: mudança → branch → PR → **CI + CodeQL verdes** → **Rebase and merge** em `main`
+(único método permitido: merge commit e squash estão desativados no repo).
 
 ## 3. CI (GitHub Actions)
 
