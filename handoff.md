@@ -99,6 +99,7 @@ Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper
 - Runes entram nas receitas via `upgraderequirements` das entradas de encantamento.
 - Receitas de faction/tokens são filtradas por regex `FACTION|_TOKEN|_ROADS` no build-data.
 - Mudou algo nisso? Rodar `npm run build:data` e **validar contra a API real** antes de commitar.
+- **Ícones (item render):** o CDN `render.albiononline.com/v1/item/{id}.png` só aceita `size=16/64/128` — os antigos 1/3/8 retornam **HTTP 500** (queimou no deploy: ícones quebrados no site e thumbnail vazia no bot; corrigido 2026-11).
 
 ### 4d. Bot do Discord
 
@@ -113,6 +114,7 @@ Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper
 - **Workers free ~1 MB gzip:** bot não importa os JSONs de dados; `rank` (planejado) precisa universar itens sem importar índice + chunking de fetch.
 - **Subrequests do Cloudflare (free):** sem paralelismo agressivo contra o AODP; chunking com paralelismo 4 e cache. `/api/rank` T4–T6 ≈ 7 chunks de 200 ids (limite free ~50 subrequests/invocação).
 - **`wrangler pages dev` não recompila quando só `packages/core` muda** (core é symlink em node_modules, fora do watcher). Editar um arquivo de `functions/` força rebuild. Deploy em produção nunca deve pegar esse estado (build CI roda do zero).
+- **Dashboard Cloudflare (2026):** o fluxo "Create application" mostra um formulário de **Worker** (com "Deploy command: npx wrangler deploy") — o create de **Pages** clássico fica escondido atrás do link **"Continue to Pages"** (última linha das opções). No formulário certo de Pages não existe Deploy command, e sim Build output directory + Root directory.
 - **AODP é serviço comunitário:** sempre gzip, respeitar throttle (`Throttled, be nice...` volta non-JSON → tratar como erro, não quebrar). Cachear no core (TTLs acima: 90s/600s/300s).
 
 ## 6. Git
@@ -128,9 +130,9 @@ Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper
 |---|---|---|
 | 1 | `rank.ts` no core + `/api/rank` + aba Oportunidades + `/oportunidades` no bot | ✅ feito |
 | 2 | Casos no sanity.ts com resultado conhecido (craft c/ setup fee, rank, universe) | ✅ feito |
-| 3 | Comando `/oportunidades` — followup edit validado apenas com token fake (ACK type 5 E2E ok); revisar em produção com app real | pendente (pós-deploy) |
+| 3 | Comando `/oportunidades` — followup edit (deferido type 5 + PATCH no webhook) | ✅ validado em produção (2026-11) |
 | 4 | CI (GitHub Actions) + dependabot + template de PR (arquivos); configurar remoto e ativar ruleset é manual | ✅ arquivos criados |
-| 5 | Deploy (Pages + Workers + secrets): **manual, quando o usuário mandar** | bloqueado por decisão do usuário |
+| 5 | Deploy — site: Cloudflare Pages GIT-CONNECTED (root `apps/web`, build c/ `--prefix ../..`, output via `pages_build_output_dir`); bot: `npx wrangler deploy` + `wrangler secret put DISCORD_BOT_TOKEN`; Interactions Endpoint validado (PING verde) | ✅ no ar (2026-11) |
 | 6 | Comparação de encantamento (`enchant.ts` no core + `/api/enchant` + aba Encantamento + `/encantamento` no bot) | ✅ feito |
 | 7 | Scan daemon — **não há código a escrever**: guia em docs/scan-daemon.md (instalar cliente da comunidade + rotina de varredura manual). Execução é na máquina do usuário; nada disso é deployável pelo agente | ✅ guia entregue |
 
