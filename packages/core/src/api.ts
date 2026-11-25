@@ -24,14 +24,37 @@ export const MAIN_CITIES = [
 
 // in-memory cache (survives across requests within a warm isolate)
 type CacheEntry = { at: number; value: unknown };
+const MAX_CACHE_ENTRIES = 256;
 const cache = new Map<string, CacheEntry>();
+const inFlight = new Map<string, Promise<unknown>>();
 
 async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < ttlMs) return hit.value as T;
-  const value = await fn();
-  cache.set(key, { at: Date.now(), value });
-  return value;
+  if (hit && Date.now() - hit.at < ttlMs) {
+    // Keep frequently reused entries from being evicted before cold keys.
+    cache.delete(key);
+    cache.set(key, hit);
+    return hit.value as T;
+  }
+  if (hit) cache.delete(key);
+
+  const pending = inFlight.get(key);
+  if (pending) return pending as Promise<T>;
+
+  const request = Promise.resolve()
+    .then(fn)
+    .then((value) => {
+      cache.set(key, { at: Date.now(), value });
+      while (cache.size > MAX_CACHE_ENTRIES) {
+        const oldestKey = cache.keys().next().value;
+        if (oldestKey === undefined) break;
+        cache.delete(oldestKey);
+      }
+      return value;
+    })
+    .finally(() => inFlight.delete(key));
+  inFlight.set(key, request);
+  return request;
 }
 
 export interface PricesOptions {
