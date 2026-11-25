@@ -639,7 +639,7 @@ async function cmdOportunidades(env: Env, options: InteractionOption[] | undefin
     rrr: '0.152',
     salesTax: String(SALES_TAX_PCT),
     setupFee: String(SETUP_FEE_PCT),
-    topN: '10',
+    topN: '5',
   };
   if (ench !== undefined) params.enchants = String(clampInt(ench, 0, 3, 0));
 
@@ -653,26 +653,24 @@ async function cmdOportunidades(env: Env, options: InteractionOption[] | undefin
     };
   }
 
-  // Grid 2×5: cada item é 1 field inline — sem a tabela monoespaçada que
-  // quebrava em 3 linhas por item no mobile do Discord.
-  const fields: EmbedField[] = entries.map((e, i) => ({
-    name: `${i + 1}. ${(e.pt || e.en).slice(0, 40)}${e.ench ? ` .${e.ench}` : ''} (T${e.tier})`,
-    value:
-      `custo ${D(e.materialCost)} → BM ${D(e.netPrice)}\n` +
-      `${e.profit >= 0 ? '✅' : '❌'} **${e.profit >= 0 ? '+' : ''}${D(e.profit)}** (${D(e.profitPct * 100, 1)}%)`,
-    inline: true,
-  }));
+  // Compacto: top 5, uma linha por item (só nome + lucro) — o detalhado
+  // está no site; aqui o usuário quer o resumo seco.
+  const description = entries
+    .map((e, i) => {
+      const sinal = e.profit >= 0 ? '+' : '';
+      return `**${i + 1}.** ${(e.pt || e.en).slice(0, 40)}${e.ench ? ` .${e.ench}` : ''} (T${e.tier}) — ${e.profit >= 0 ? '✅' : '❌'} ${sinal}${D(e.profit)} (${D(e.profitPct * 100, 0)}%)`;
+    })
+    .join('\n');
 
   return {
     embeds: [
       {
         title: '🔎 Oportunidades de craft (Black Market)',
-        description: `Comprando materiais na cidade mais barata, venda no Black Market.`,
+        description,
         color: entries[0].profit > 0 ? COLOR_OK : COLOR_BAD,
         thumbnail: { url: iconUrl(entries[0].itemId, 64) },
-        fields,
         footer: {
-          text: `T${tierMin}–T${tierMax}${ench !== undefined ? ` · encantamento .${ench}` : ''} · ${D(data.universeSize)} itens · RRR 15.2% · impostos base (${SALES_TAX_PCT}% + ${SETUP_FEE_PCT}%)`,
+          text: `Compra: cidade mais barata · Venda: Black Market · T${tierMin}–T${tierMax}${ench !== undefined ? ` · encantamento .${ench}` : ''} · detalhe completo no site`,
         },
       },
     ],
@@ -709,21 +707,21 @@ async function cmdEncantamento(env: Env, options: InteractionOption[] | undefine
   const rows = data.rows ?? [];
   if (!rows.length) return { content: `⚠️ Sem dados de encantamento para **${name}**.` };
 
-  // 4 fields inline (um por nível) — substitui a linha única "breadcrumb"
-  // que estourava 100 chars e quebrava em 3 linhas no mobile.
+  // Um bloco por nível (inline=false, empilhado) — em vez do grid de
+  // quadradinhos que ficava difícil de comparar e ler.
   const fields: EmbedField[] = rows.map((r) => {
     const buyLine = r.buyPrice !== null
-      ? `🛒 comprar: ${D(r.buyPrice)} (${r.buyCity})`
-      : '🛒 comprar: sem oferta';
+      ? `🛒 comprar pronto: ${D(r.buyPrice)} (${r.buyCity})`
+      : '🛒 comprar pronto: sem oferta';
     const craftLine = !r.hasRecipe
       ? '🔨 craftar: — (sem receita)'
       : r.craftCost !== null ? `🔨 craftar: ${D(r.craftCost)}` : '🔨 craftar: ⚠️ sem preço';
     let verdict: string;
-    if (r.cheaper === 'craft') verdict = `→ 🔨 ${D((r.savingsPct ?? 0) * 100, 1)}% mais barato`;
-    else if (r.cheaper === 'buy') verdict = `→ 🛒 comprar pronto ${D((r.savingsPct ?? 0) * 100, 1)}% mais barato`;
+    if (r.cheaper === 'craft') verdict = `→ ✅ **craftar** ${D((r.savingsPct ?? 0) * 100, 1)}% mais barato`;
+    else if (r.cheaper === 'buy') verdict = `→ ✅ **comprar pronto** ${D((r.savingsPct ?? 0) * 100, 1)}% mais barato`;
     else if (r.buyPrice !== null && r.craftCost !== null) verdict = '→ ⚖️ empate';
-    else verdict = '→ ? incompleto';
-    return { name: `Nível .${r.ench}`, value: `${buyLine}\n${craftLine}\n${verdict}`, inline: true };
+    else verdict = '→ ⚠️ sem dados suficientes';
+    return { name: `Nível .${r.ench}`, value: `${buyLine}\n${craftLine}\n${verdict}`, inline: false };
   });
 
   if (rows.some((r) => r.missing.length > 0 && r.craftCost === null)) {

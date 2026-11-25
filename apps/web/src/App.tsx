@@ -45,7 +45,7 @@ export default function App() {
       <header className="border-b border-zinc-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2.5">
-            <img src={iconUrl('T4_BAG', 16)} alt="" className="h-8 w-8" />
+            <img src={iconUrl('T4_BAG', 64)} alt="" className="h-8 w-8" />
             <div>
               <h1 className="text-base font-bold text-zinc-900 dark:text-zinc-50">{t(locale, 'title')}</h1>
               <p className="hidden text-xs text-zinc-500 sm:block dark:text-zinc-400">{t(locale, 'subtitle')}</p>
