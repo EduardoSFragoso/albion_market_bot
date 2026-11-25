@@ -135,6 +135,7 @@ Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper
 | 5 | Deploy — site: Cloudflare Pages GIT-CONNECTED (root `apps/web`, build c/ `--prefix ../..`, output via `pages_build_output_dir`); bot: `npx wrangler deploy` + `wrangler secret put DISCORD_BOT_TOKEN`; Interactions Endpoint validado (PING verde) | ✅ no ar (2026-11) |
 | 6 | Comparação de encantamento (`enchant.ts` no core + `/api/enchant` + aba Encantamento + `/encantamento` no bot) | ✅ feito |
 | 7 | Scan daemon — **não há código a escrever**: guia em docs/scan-daemon.md (instalar cliente da comunidade + rotina de varredura manual). Execução é na máquina do usuário; nada disso é deployável pelo agente | ✅ guia entregue |
+| 8 | Migrar o runtime do bot (Worker) pra VM própria (gateway/VPS) — só quando o usuário disser que tudo tá rodando redondo; exige hospedar o servidor HTTP de interactions + endpoint URL nova | pendência futura (só a pedido) |
 
 ## 8. Histórico estrutural
 
