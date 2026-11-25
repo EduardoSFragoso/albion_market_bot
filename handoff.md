@@ -138,7 +138,7 @@ Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper
 | 7 | Scan daemon — **não há código a escrever**: guia em docs/scan-daemon.md (instalar cliente da comunidade + rotina de varredura manual). Execução é na máquina do usuário; nada disso é deployável pelo agente | ✅ guia entregue |
 | 8 | Migrar o runtime do bot (Worker) pra VM própria (gateway/VPS) — só quando o usuário disser que tudo tá rodando redondo; exige hospedar o servidor HTTP de interactions + endpoint URL nova | pendência futura (só a pedido) |
 | 9 | Majors do dependabot, 1 PR por vez: vite 8, @vitejs/plugin-react 6, react-dom 19, @cloudflare/workers-types 5, wrangler 4.166 (undici/esbuild/@fastify/busboy cobertos de brinde) — alertas de vuln zerados, CodeQL como check obrigatório do ruleset | ✅ feito (2026-11) |
-| 10 | Re-deploy do bot com wrangler 4 (`npx wrangler deploy` em apps/bot) + smoke `/preco` no Discord | pendente (execução manual do mantenedor) |
+| 10 | Re-deploy do bot com wrangler 4 (`npx wrangler deploy` em apps/bot) + smoke `/preco` no Discord | ✅ feito (2026-11; worker 200 no healthcheck) |
 
 ## 8. Histórico estrutural
 
