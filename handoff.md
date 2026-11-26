@@ -52,8 +52,8 @@ packages/core/            @albion/core
   src/calc/flip.ts        calcBestFlip, calcFlipBetween, craftMaterialCost (custo de materiais por cidade mais barata, RRR)
   src/calc/rank.ts        rankOpportunities/rankUniverse/scoreCraftItem — scan em massa de oportunidades
   src/calc/enchant.ts     compareEnchants/enchantFamilyIds — comprar pronto vs. craftar por nível (.0–.3)
-  src/data/items.json     11.069 itens (nomes PT-BR) — GERADO, não editar à mão
-  src/data/recipes.json   8.793 receitas — GERADO
+  src/data/items.json     11.158 itens (nomes PT-BR) — GERADO, não editar à mão
+  src/data/recipes.json   9.039 receitas — GERADO; inclui alternativas e limites individuais de RRR
   test/sanity.ts          rede de segurança (npx tsx)
 apps/web/                 site (Vite + React + Tailwind v4)
   functions/api/[[route]].ts   backend compartilhado site+bot
@@ -102,11 +102,11 @@ Respostas JSON com `content-type`, CORS `*`,
 | `/api/` | — | `{ service, server, endpoints }` |
 | `/api/search` | `q (≤100 chars), locale=pt\|en, limit (1-30)` | `{ results: ItemIndexEntry[] }` |
 | `/api/prices` | `items` (1–200 IDs), `locations` (MAIN_CITIES, até 8), `qualities` (1–5) | `{ server, prices: MarketPrice[] }` |
-| `/api/craft` | `item, buyCity, sellCity, buyMode=instant\|order, salesTax, setupFee, rrr` | `{ server, item, recipe, buyCity, sellCity, result: CraftResult, cheapest }`; `error:'no-recipe'` quando sem receita; 404 item desconhecido |
+| `/api/craft` | `item, buyCity, sellCity, buyMode=instant\|order, salesTax, setupFee, rrr` | `{ server, item, recipe, buyCity, sellCity, result: CraftResult, cheapest }`; `recipe.resources` apresenta a alternativa selecionada por custo e expande os componentes (máx. 5 níveis/200 nós, quantidades acumuladas sem desconto de RRR); alternativas sem preço completo não vencem uma rota completa; `error:'no-recipe'` quando sem receita; 404 item desconhecido |
 | `/api/flip` | `item, salesTax, setupFee` | `{ server, item, prices, best: FlipResult\|null }` |
 | `/api/history` | `item, days (1-30), timeScale=1\|6\|24, locations=, qualities=` | `{ server, history }` |
 | `/api/rank` | `tierMin, tierMax, enchants, maxItems (≤1500), buyMode, sellCity ('best'=maior lance), rrr, salesTax, setupFee, topN (≤250)` | `{ universeSize, scanned, skippedMissing, chunks, entries: RankEntry[], paramsOk }` |
-| `/api/enchant` | `item (id ou id@n), buyMode=instant\|order, rrr` | `{ server, baseId, rows: EnchantRow[] }` — uma linha por nível .0–.3 existente; `craftCost/buyPrice: null` = sem dado vivo; sufixo `@n` no input é removido antes (usa `enchantBaseId`) |
+| `/api/enchant` | `item (id ou id@n), buyMode=instant\|order, rrr` | `{ server, baseId, rows: EnchantRow[] }` — uma linha por nível .0–.3 existente; cada linha inclui `ingredients` da receita; `.0` é o item base sem encantamento; `craftCost/buyPrice: null` = sem dado vivo; sufixo `@n` no input é removido antes (usa `enchantBaseId`) |
 
 Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper `num` trata `null`/`''` explicitamente — `Number(null)=0` já enganou uma vez: `/api/rank` primeira versão capava o universo em 1 item). Erros: `{ error: string }` com status 400/404/429/502/503 (nunca stack trace). Respostas 429/503 usam `Cache-Control: no-store`; o restante mantém cache público de 60s.
 
@@ -127,12 +127,15 @@ e qualidade; `/rank` aceita até quatro encantamentos entre 0 e 3.
 - Instant buy → `sell_price_min`; buy order → `buy_price_max`; instant sell → `buy_price_max` (maior lance vivo); sell order → `sell_price_min`.
 - Impostos de venda: base 8% (premium 4%) + setup 2.5% (premium 1.5%) — **calcCraft aplica AMBOS** desde a feature de rank (antes ignorava o setup fee; alinhamento com flip e bot).
 - Resource Return Rate (RRR): presets 0.152 (base), 0.248 (cidade bônus/refineria), 0.435 (Caerleon).
+- Receitas geradas preservam rotas alternativas com recursos, quantidade produzida e prata próprios por rota, `@enchantmentlevel` dos insumos e `@maxreturnamount`. Craft e ranking selecionam a rota com menos preços ausentes e menor custo por unidade; o custo inclui a prata fixa da receita. O RRR esperado por insumo é limitado ao máximo retornável quando o dump informa esse campo; itens com máximo zero não recebem desconto de RRR.
+- Quando há várias rotas de craft, cálculos escolhem a de menor custo com preço completo; se nenhuma estiver completa, preferem a rota com menos preços ausentes e depois menor custo parcial.
 - Craft sem preço vivo do material → usa cidade mais barata com preço e marca `fallbackCity`; **nunca custo 0 silencioso**.
 - Comprar PRONTO (comparação de encantamento) = menor **oferta viva** (`sell_price_min`) em qualquer cidade, **incluindo Black Market** — comprar de ofertas no BM é legítimo; excluir BM só vale para vender ao NPC (Black Market nunca é fonte de material).
 
 ### 4c. IDs de item do mercado (armadilha que já queimou)
 
 - Equipamento encantado: `T4_BAG@1`, `T4_BAG@2`, `T4_BAG@3`.
+- Campo `@enchantmentlevel` do dump também converte insumos de equipamento, como `T4_CAPE` + nível 1 → `T4_CAPE@1`.
 - **Recurso encantado: `T4_CLOTH_LEVEL1@1`** (formato `<BASE>_LEVEL<n>@<n>` — os formatos `T4_CLOTH@1` e `T4_CLOTH_LEVEL1` sem `@` NÃO retornam dados da API).
 - Runes/souls/relics: sem sufixo (`T4_RUNE`).
 - Runes entram nas receitas via `upgraderequirements` das entradas de encantamento.

@@ -39,6 +39,9 @@ jobs:
       - name: Testes de validação da API web
         run: npm run test:web-validation
 
+      - name: Testes de formatação do site
+        run: npm run test:web-format
+
       - name: Testes do rate limiter da API
         run: npm run test:api-rate-limit
 

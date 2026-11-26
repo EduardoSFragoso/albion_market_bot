@@ -6,7 +6,7 @@
 //   - Sell order   -> match the cheapest offer(sell_price_min)
 //   - Resource Return Rate (RRR) reduces average inputs per craft over many crafts.
 import type { Recipe, MarketPrice } from '../types';
-import { getRecipe } from '../items';
+import { getRecipe, recipeOptions } from '../items';
 
 export type PriceMode = 'instant' | 'order';
 
@@ -37,6 +37,7 @@ export interface CraftResult {
   ok: boolean;
   reason?: string;
   outputId: string;
+  selectedRecipe?: Recipe;
   amountPerCraft: number;
   materials: Array<{
     id: string;
@@ -48,14 +49,20 @@ export interface CraftResult {
     usedCity?: string;
     fallbackCity?: string; // set when buyCity had no live price and another city was used
   }>;
-  materialCost: number; // silver per craft (RRR-adjusted; per unit of output — all current recipes craft 1)
-  totalCost: number; // = materialCost (taxes are taken on the revenue side)
+  materialCost: number; // materials for one craft action/batch after RRR
+  totalCost: number; // materials + fixed recipe silver for one craft action/batch
   salePrice: number; // per unit (instant sell vs sell order)
   revenue: number; // salePrice * amount * (1 - salesTax)
   profit: number; // revenue - totalCost
   profitPctOfCost: number;
   missingCities: string[];
   missingSalePrice?: boolean;
+}
+
+/** Expected inputs after the recipe-specific return cap and the selected RRR. */
+export function effectiveResourceCount(resource: Recipe['resources'][number], rrr: number): number {
+  const returned = Math.min(resource.count * rrr, resource.maxReturnAmount ?? Infinity);
+  return Math.max(0, resource.count - returned);
 }
 
 export interface CraftCalcArgs {
@@ -78,55 +85,79 @@ export function calcCraft(args: CraftCalcArgs): CraftResult {
   const outPrice = outs.find((p) => p.quality === 1 && livePrice(p) && unitPrice(p, 'instant', 'sell') > 0)
     ?? outs.find((p) => livePrice(p) && unitPrice(p, 'instant', 'sell') > 0);
 
-  const missingCities: string[] = [];
-  const materials = recipe.resources.map((r) => {
-    const candidates = prices.filter((p) => p.item_id === r.id && p.city === buyCity);
-    let p = candidates.find((x) => x.quality === 1 && livePrice(x));
-    if (!p) p = candidates.find((x) => livePrice(x));
-    let fallbackCity: string | undefined;
+  const evaluate = (candidate: Recipe): { recipe: Recipe; materials: CraftResult['materials']; missingCities: string[]; materialCost: number; totalCost: number; unitCost: number } => {
+    const missingCities: string[] = [];
+    const materials = candidate.resources.map((r) => {
+      const candidates = prices.filter((p) => p.item_id === r.id && p.city === buyCity);
+      let p = candidates.find((x) => x.quality === 1 && livePrice(x));
+      if (!p) p = candidates.find((x) => livePrice(x));
+      let fallbackCity: string | undefined;
 
-    // fallback: if buyCity has no live price, use the cheapest live price in any other city
-    // (prevents silently computing a 0 cost with inflated profit)
-    if (!p || unitPrice(p, settings.buyMode, 'buy') <= 0) {
-      const others = prices
-        .filter((x) => x.item_id === r.id && x.city !== 'Black Market' && livePrice(x))
-        .map((x) => ({ x, u: unitPrice(x, settings.buyMode, 'buy') }))
-        .filter((o) => o.u > 0)
-        .sort((a, b) => a.u - b.u);
-      if (others.length) {
-        p = others[0].x;
-        fallbackCity = p.city;
+      // fallback: if buyCity has no live price, use the cheapest live price in any other city
+      // (prevents silently computing a 0 cost with inflated profit)
+      if (!p || unitPrice(p, settings.buyMode, 'buy') <= 0) {
+        const others = prices
+          .filter((x) => x.item_id === r.id && x.city !== 'Black Market' && livePrice(x))
+          .map((x) => ({ x, u: unitPrice(x, settings.buyMode, 'buy') }))
+          .filter((o) => o.u > 0)
+          .sort((a, b) => a.u - b.u);
+        if (others.length) {
+          p = others[0].x;
+          fallbackCity = p.city;
+        }
       }
-    }
 
-    const unit = unitPrice(p, settings.buyMode, 'buy');
-    if (!p || unit <= 0) missingCities.push(r.id);
+      const unit = unitPrice(p, settings.buyMode, 'buy');
+      if (!p || unit <= 0) missingCities.push(r.id);
+      return {
+        id: r.id,
+        countPerCraft: r.count,
+        effectiveCount: effectiveResourceCount(r, settings.rrr),
+        unitPrice: unit,
+        cost: unit * effectiveResourceCount(r, settings.rrr),
+        missingPrice: !p || unit <= 0,
+        usedCity: p?.city,
+        fallbackCity,
+      };
+    });
+    const materialCost = materials.reduce((s, m) => s + m.cost, 0);
+    const totalCost = materialCost + candidate.silver;
     return {
-      id: r.id,
-      countPerCraft: r.count,
-      effectiveCount: r.count * (1 - settings.rrr),
-      unitPrice: unit,
-      cost: unit * r.count * (1 - settings.rrr),
-      missingPrice: !p || unit <= 0,
-      usedCity: p?.city,
-      fallbackCity,
+      recipe: candidate,
+      materials,
+      missingCities,
+      materialCost,
+      totalCost,
+      unitCost: totalCost / (candidate.amount || 1),
     };
-  });
+  };
 
-  const materialCost = materials.reduce((s, m) => s + m.cost, 0) / (recipe.amount || 1);
+  const choice = recipeOptions(recipe).map(evaluate).reduce((best, candidate) =>
+    candidate.missingCities.length < best.missingCities.length ||
+    (candidate.missingCities.length === best.missingCities.length && candidate.unitCost < best.unitCost)
+      ? candidate
+      : best,
+  );
+  const { selectedRecipe, materials, missingCities, materialCost, totalCost } = {
+    selectedRecipe: choice.recipe,
+    materials: choice.materials,
+    missingCities: choice.missingCities,
+    materialCost: choice.materialCost,
+    totalCost: choice.totalCost,
+  };
   const salePrice = unitPrice(outPrice, 'instant', 'sell');
   const missingSalePrice = salePrice <= 0;
   // revenue applies both taxes, matching the flip calculator and the bot's /lucro
   // (sales tax 8%/4% + order setup fee 2.5%/1.5%) — see user spec.
-  const revenue = salePrice * recipe.amount * (1 - settings.salesTaxPct / 100) * (1 - settings.setupFeePct / 100);
-  const totalCost = materialCost;
+  const revenue = salePrice * selectedRecipe.amount * (1 - settings.salesTaxPct / 100) * (1 - settings.setupFeePct / 100);
   const profit = revenue - totalCost;
 
   return {
     ok: missingCities.length === 0 && !missingSalePrice,
     ...((missingCities.length > 0 || missingSalePrice) ? { reason: 'missing-price' } : {}),
     outputId: itemId,
-    amountPerCraft: recipe.amount,
+    selectedRecipe,
+    amountPerCraft: selectedRecipe.amount,
     materials,
     materialCost,
     totalCost,

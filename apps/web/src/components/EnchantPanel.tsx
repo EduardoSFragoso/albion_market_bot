@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { iconUrl } from '@albion/core';
+import { iconUrl } from '@albion/core/presentation';
 import type { EnchantRow } from '@albion/core';
 import { api } from '../api';
 import type { Locale } from '../i18n';
@@ -73,8 +73,8 @@ export default function EnchantPanel({ itemId, locale }: Props) {
                   <div className="flex items-center gap-2.5">
                     <img src={iconUrl(r.outputId, 64)} alt="" className="h-8 w-8 shrink-0" />
                     <div>
-                      <div className="font-medium text-zinc-800 dark:text-zinc-200">.{r.ench}</div>
-                      <div className="text-xs text-zinc-500 dark:text-zinc-400">{r.pt || r.en}</div>
+                      <div className="font-medium text-zinc-800 dark:text-zinc-200">{r.ench === 0 ? t(locale, 'enchantBase') : `.${r.ench}`}</div>
+                      <div className="text-xs text-zinc-500 dark:text-zinc-400">{locale === 'pt' ? r.pt || r.en : r.en || r.pt}</div>
                     </div>
                   </div>
                 </td>
@@ -107,7 +107,27 @@ export default function EnchantPanel({ itemId, locale }: Props) {
           </tbody>
         </table>
       </div>
-      <p className="text-center text-xs text-zinc-400 dark:text-zinc-600">{t(locale, 'footer')}</p>
+      <section className="space-y-2 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+        <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{t(locale, 'enchantMaterials')}</h3>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">{t(locale, 'enchantMaterialsHelp')}</p>
+        <ul className="grid gap-2 pt-1 sm:grid-cols-2">
+          {rows.filter((row) => row.hasRecipe).map((row) => (
+            <li key={row.outputId} className="rounded-md bg-zinc-50 px-3 py-2 text-xs dark:bg-zinc-800/60">
+              <div className="mb-1 font-semibold text-zinc-700 dark:text-zinc-200">
+                {row.ench === 0 ? t(locale, 'enchantBase') : `.${row.ench}`}
+              </div>
+              <ul className="space-y-0.5 text-zinc-600 dark:text-zinc-300">
+                {row.ingredients.map((ingredient) => (
+                  <li key={ingredient.id} className="flex items-center gap-1.5">
+                    <img src={iconUrl(ingredient.id, 64)} alt="" className="h-[30px] w-[30px] shrink-0" loading="lazy" />
+                    <span>{ingredient.count} × {locale === 'pt' ? ingredient.pt || ingredient.en : ingredient.en || ingredient.pt}</span>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
+      </section>
     </div>
   );
 }

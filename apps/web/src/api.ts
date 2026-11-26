@@ -1,5 +1,9 @@
 // typed client for /api/*
-import type { MarketPrice, LocationHistory, ItemIndexEntry, RankResult, EnchantRow } from '@albion/core';
+import type { MarketPrice, LocationHistory, ItemIndexEntry, RankResult, EnchantRow, RecipeTreeIngredient } from '@albion/core';
+
+const SEARCH_CACHE_TTL_MS = 60_000;
+const SEARCH_CACHE_MAX = 50;
+const searchCache = new Map<string, { expiresAt: number; results: ItemIndexEntry[] }>();
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(path);
@@ -13,7 +17,7 @@ async function get<T>(path: string): Promise<T> {
 export interface CraftResponse {
   server: string;
   item: ItemIndexEntry;
-  recipe: { resources: { id: string; count: number }[]; amount: number } | null;
+  recipe: { resources: RecipeTreeIngredient[]; amount: number; silver: number } | null;
   buyCity: string;
   sellCity: string;
   result?: {
@@ -35,8 +39,28 @@ export interface CraftResponse {
 }
 
 export const api = {
+  search: async (query: string, locale: 'pt' | 'en', limit = 10) => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return [] as ItemIndexEntry[];
+    const key = `${locale}:${limit}:${normalized}`;
+    const cached = searchCache.get(key);
+    if (cached && cached.expiresAt > Date.now()) return cached.results;
+    if (cached) searchCache.delete(key);
+    const p = new URLSearchParams({ q: query, locale, limit: String(limit) });
+    const { results } = await get<{ results: ItemIndexEntry[] }>(`/api/search?${p}`);
+    searchCache.set(key, { results, expiresAt: Date.now() + SEARCH_CACHE_TTL_MS });
+    if (searchCache.size > SEARCH_CACHE_MAX) {
+      const oldest = searchCache.keys().next().value;
+      if (oldest) searchCache.delete(oldest);
+    }
+    return results;
+  },
   prices: (itemId: string, qualities = 1) =>
     get<{ prices: MarketPrice[] }>(`/api/prices?items=${encodeURIComponent(itemId)}&qualities=${qualities}`),
+  flip: (args: { item: string; salesTax: number; setupFee: number }) => {
+    const p = new URLSearchParams({ item: args.item, salesTax: String(args.salesTax), setupFee: String(args.setupFee) });
+    return get<{ prices: MarketPrice[]; best: import('@albion/core').FlipResult | null }>(`/api/flip?${p}`);
+  },
   craft: (args: { item: string; buyCity: string; sellCity: string; rrr: number; buyMode: 'instant' | 'order'; salesTax: number; setupFee: number }) => {
     const p = new URLSearchParams({ item: args.item, buyCity: args.buyCity, sellCity: args.sellCity, rrr: String(args.rrr), buyMode: args.buyMode, salesTax: String(args.salesTax), setupFee: String(args.setupFee) });
     return get<CraftResponse>(`/api/craft?${p}`);

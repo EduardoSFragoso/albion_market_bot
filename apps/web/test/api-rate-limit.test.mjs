@@ -10,17 +10,23 @@ const routePath = process.env.API_ROUTE_UNDER_TEST
 const validationUrl = new URL('../api-validation.ts', import.meta.url).href;
 const coreStub = `
 export const MAIN_CITIES = ['Thetford', 'Fort Sterling', 'Lymhurst', 'Bridgewatch', 'Martlock', 'Caerleon', 'Brecilien', 'Black Market'];
-export async function fetchPrices() { globalThis.__aodpCalls++; return []; }
+export async function fetchPrices(server, ids) { globalThis.__aodpCalls++; globalThis.__aodpPriceIds = ids; return []; }
 export async function fetchHistory() { globalThis.__aodpCalls++; return []; }
 export function searchItems() { return []; }
 export function getItem(id) { return id === 'T4_BAG' ? { id, en: 'Bag', pt: 'Bolsa', tier: 4, ench: 0, cat: 'bag', craftable: 1 } : undefined; }
-export function getRecipe(id) { return id === 'T4_BAG' ? { resources: [{ id: 'T4_CLOTH', count: 1 }], amount: 1, silver: 0 } : undefined; }
+export function getRecipe(id) {
+  if (id === 'T4_BAG') return { resources: [{ id: 'T4_CLOTH', count: 1 }], alternatives: [{ resources: [{ id: 'T4_LEATHER', count: 1 }], amount: 1, silver: 0 }], amount: 1, silver: 0 };
+  if (id === 'T4_BAG@1') return { resources: [{ id: 'T4_RUNE', count: 1 }], alternatives: [{ resources: [{ id: 'T4_SOUL', count: 1 }], amount: 1, silver: 0 }], amount: 1, silver: 0 };
+  return undefined;
+}
+export function recipeOptions(recipe) { return [{ resources: recipe.resources, amount: recipe.amount, silver: recipe.silver }, ...(recipe.alternatives ?? [])]; }
+export function expandRecipeTree(id) { return id === 'T4_BAG' ? [{ id: 'T4_CLOTH', count: 1, en: 'Fine Cloth', pt: 'Tecido Fino', ench: 0, components: [{ id: 'T3_CLOTH', count: 1, en: 'Simple Cloth', pt: 'Tecido Simples', ench: 0, components: [] }] }] : []; }
 export function calcCraft() { return { ok: true, profit: 1 }; }
 export function calcBestFlip() { return undefined; }
 export function cheapestCityFor() { return undefined; }
 export async function rankOpportunities() { return {}; }
 export function compareEnchants() { return []; }
-export function enchantFamilyIds() { return []; }
+export function enchantFamilyIds(id) { return id === 'T4_BAG' ? ['T4_BAG', 'T4_BAG@1'] : []; }
 `;
 const coreUrl = `data:text/javascript;base64,${Buffer.from(coreStub).toString('base64')}`;
 const routeSource = (await readFile(routePath, 'utf8'))
@@ -124,4 +130,25 @@ test('rejeita cidades desconhecidas em craft e rank', async () => {
   assert.equal(invalidBuyCity.status, 400);
   assert.equal(invalidSellCity.status, 400);
   assert.equal(invalidRankCity.status, 400);
+});
+
+test('craft expõe receitas dos componentes para a interface', async () => {
+  globalThis.__aodpPriceIds = [];
+  const response = await onRequest(context('/api/craft?item=T4_BAG', async () => new Response(null, { status: 204 }), {
+    'CF-Connecting-IP': '203.0.113.8',
+  }));
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.recipe.resources[0].components[0].id, 'T3_CLOTH');
+  assert.ok(globalThis.__aodpPriceIds.includes('T4_LEATHER'), 'consulta preços de todas as alternativas de craft');
+});
+
+test('encantamento consulta os ingredientes de todas as alternativas', async () => {
+  globalThis.__aodpPriceIds = [];
+  const response = await onRequest(context('/api/enchant?item=T4_BAG', async () => new Response(null, { status: 204 }), {
+    'CF-Connecting-IP': '203.0.113.8',
+  }));
+  assert.equal(response.status, 200);
+  assert.ok(globalThis.__aodpPriceIds.includes('T4_LEATHER'));
+  assert.ok(globalThis.__aodpPriceIds.includes('T4_SOUL'));
 });

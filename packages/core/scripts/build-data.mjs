@@ -61,7 +61,11 @@ for (const e of namesArr) {
     pt: e.LocalizedNames?.['PT-BR'] ?? e.LocalizedNames?.['EN-US'] ?? '',
   });
 }
+const ITEM_NAME_OVERRIDES = {
+  QUESTITEM_TOKEN_ARENA_CRYSTAL: { en: 'Arena Sigil', pt: 'Selo da Arena' },
+};
 const nameFor = (id) => {
+  if (ITEM_NAME_OVERRIDES[id]) return ITEM_NAME_OVERRIDES[id];
   const direct = names.get(id);
   if (direct?.en) return direct;
   const stripped =
@@ -92,28 +96,66 @@ const items = [];
 const recipes = {};
 const seen = new Set();
 
-const resourcesFrom = (cr) => {
-  for (const entry of tl(cr)) {
-    if (!entry || typeof entry !== 'object') continue;
-    const res = tl(entry.craftresource).filter((r) => r && !isFaction(r['@uniquename']));
-    if (res.length) return res;
-  }
-  return [];
+const marketResourceId = (resource) => {
+  let id = mkMarketId(resource['@uniquename']);
+  const enchantLevel = Number(resource['@enchantmentlevel'] ?? 0);
+  if (enchantLevel > 0 && !/@\d+$/.test(id)) id = `${id}@${enchantLevel}`;
+  return id;
 };
 
-const addRecipe = (id, res, xtraRes, amount, silver) => {
+const resourcesFrom = (craftresources) => {
   const list = [];
-  for (const r of [...res, ...xtraRes]) {
+  for (const r of tl(craftresources)) {
     if (!r['@uniquename']) continue;
-    const rid = mkMarketId(r['@uniquename']);
+    const rid = marketResourceId(r);
     const cnt = Number(r['@count'] ?? 1) || 1;
-    const prev = list.find((x) => x.id === rid);
-    if (prev) prev.count += cnt;
-    else list.push({ id: rid, count: cnt });
+    const maxReturnAmount = r['@maxreturnamount'] == null ? undefined : Number(r['@maxreturnamount']);
+    const prev = list.find((x) => x.id === rid && x.maxReturnAmount === maxReturnAmount);
+    if (prev) {
+      prev.count += cnt;
+      if (maxReturnAmount !== undefined) prev.maxReturnAmount += maxReturnAmount;
+    } else {
+      list.push({ id: rid, count: cnt, ...(maxReturnAmount === undefined ? {} : { maxReturnAmount }) });
+    }
   }
-  if (!list.length) return false;
-  recipes[id] = { resources: list, amount: amount || 1, silver: silver || 0 };
+  return list;
+};
+
+const addRecipe = (id, craftingRequirements, xtraRes) => {
+  const extra = resourcesFrom(xtraRes);
+  const paths = tl(craftingRequirements)
+    .map((requirement) => ({
+      resources: [...resourcesFrom(requirement?.craftresource), ...extra],
+      amount: recipeAmount(requirement, craftingRequirements),
+      silver: recipeSilver(requirement, craftingRequirements),
+    }))
+    .filter((path) => path.resources.length > 0)
+    .map((path) => {
+      const merged = [];
+      for (const resource of path.resources) {
+        const prev = merged.find((x) => x.id === resource.id && x.maxReturnAmount === resource.maxReturnAmount);
+        if (prev) {
+          prev.count += resource.count;
+          if (resource.maxReturnAmount !== undefined) prev.maxReturnAmount += resource.maxReturnAmount;
+        } else merged.push({ ...resource });
+      }
+      return { ...path, resources: merged };
+    });
+  const uniquePaths = [...new Map(paths.map((path) => [JSON.stringify(path), path])).values()];
+  if (!uniquePaths.length) return false;
+  recipes[id] = {
+    ...uniquePaths[0],
+    ...(uniquePaths.length > 1 ? { alternatives: uniquePaths.slice(1) } : {}),
+  };
   return true;
+};
+
+const recipeAmount = (requirement, requirements) => {
+  return Number(requirement?.['@amountproduced'] ?? requirement?.['@amountcrafted'] ?? requirements?.['@amountproduced'] ?? requirements?.['@amountcrafted'] ?? 1) || 1;
+};
+
+const recipeSilver = (requirement, requirements) => {
+  return Number(requirement?.['@silver'] ?? requirements?.['@silver'] ?? 0) || 0;
 };
 
 const pushItem = (id, tier, cat, craftable) => {
@@ -139,11 +181,7 @@ for (const type of USER_TYPES) {
     id = mkMarketId(id); // `T4_CLOTH_LEVEL1` -> `T4_CLOTH_LEVEL1@1` (market id)
     const tier = entry['@tier'] ? Number(entry['@tier']) : undefined;
     const cat = entry['@shopcategory'] ?? '';
-    const res = resourcesFrom(entry.craftingrequirements);
-    let craftable = false;
-    if (res.length) {
-      craftable = addRecipe(id, res, [], Number(entry.craftingrequirements?.['@amountproduced'] ?? 1), Number(entry.craftingrequirements?.['@silver'] ?? 0));
-    }
+    const craftable = addRecipe(id, entry.craftingrequirements, []);
     pushItem(id, tier, cat, craftable);
 
     // enchant variants (equipment/weapon): recipes reference enchanted resources + runes/souls/relics
@@ -151,11 +189,8 @@ for (const type of USER_TYPES) {
       const lvl = Number(enc?.['@enchantmentlevel']);
       if (!lvl) continue;
       const eid = `${id}@${lvl}`;
-      const eres = resourcesFrom(enc.craftingrequirements);
       const upgrade = tl(enc.upgraderequirements?.upgraderesource);
-      const eCraftable = eres.length
-        ? addRecipe(eid, eres, upgrade, Number(enc.craftingrequirements?.['@amountproduced'] ?? 1), Number(enc.craftingrequirements?.['@silver'] ?? 0))
-        : false;
+      const eCraftable = addRecipe(eid, enc.craftingrequirements, upgrade);
       pushItem(eid, tier, cat, eCraftable);
     }
   }
@@ -222,7 +257,9 @@ for (const rec of Object.values(recipes)) {
     seen.add(r.id);
     const base = r.id.replace(/@\d+$/, '').replace(/^T\d+_/i, '');
     const pretty = base.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-    items.push({ id: r.id, en: pretty, pt: pretty, tier: m ? Number(m[1]) : 0, ench: 0, cat: 'other', craftable: 0 });
+    const n = nameFor(r.id);
+    const tier = m ? Number(m[1]) : Number(r.id.match(/(?:^|_)T(\d+)$/i)?.[1] ?? 0);
+    items.push({ id: r.id, en: n.en || pretty, pt: n.pt || n.en || pretty, tier, ench: Number(r.id.match(/@(\d+)$/)?.[1] ?? 0), cat: 'other', craftable: 0 });
   }
 }
 

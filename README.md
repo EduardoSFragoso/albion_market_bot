@@ -18,7 +18,7 @@ albion_market_bot/
 ## Como funciona
 
 1. Os preços vêm da API pública do **Albion Online Data Project** (`west.albion-online-data.com`), alimentada pelos uploads dos jogadores rodando o [cliente do projeto](https://github.com/ao-data/albiondata-client/releases).
-2. Itens e receitas vêm dos dumps oficiais do jogo — o pipeline normaliza nomes **PT-BR**, encantamentos (`.1`–`.4`) e materiais (`T4_CLOTH_LEVEL1@1`, runas/souls/relics).
+2. Itens e receitas vêm dos dumps oficiais do jogo — o pipeline normaliza nomes **PT-BR**, encantamentos (`.1`–`.4`) e materiais (`T4_CLOTH_LEVEL1@1`, runas/souls/relics). Rotas alternativas mantêm seus próprios ingredientes, rendimento e prata; o cálculo aplica o RRR respeitando os limites de retorno informados pelo dump.
 3. O site hospeda no Cloudflare Pages; as `functions/api/*` fazem proxy com cache e consultam o Worker interno de rate limit antes de processar pedidos. O bot (Workers) consulta essas mesmas URLs — nada de lógica duplicada.
 
 ## Desenvolvimento local
@@ -41,6 +41,7 @@ npm run test:bot
 npm run test:api-cache
 npm run test:api-rate-limit
 npm run test:web-validation
+npm run test:web-format
 npm run build:api-limiter
 npx tsx packages/core/test/sanity.ts
 npm run build:web

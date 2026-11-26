@@ -29,7 +29,7 @@ Matriz completa da CI: `.github/workflows/ci.yml`.
 
 ## Qualidade, erros e testes
 
-- Antes de dar tarefa por concluída: `npm run typecheck`, sanity do core (`npx tsx packages/core/test/sanity.ts`), testes da camada tocada (`npm run test:bot`, `npm run test:api-cache`, `npm run test:web-validation`, `npm run test:api-rate-limit`) e build aplicável (`npm run build:web`; `npm run build:api-limiter` se o limitador mudar). A matriz completa está em `.github/workflows/ci.yml`.
+- Antes de dar tarefa por concluída: `npm run typecheck`, sanity do core (`npx tsx packages/core/test/sanity.ts`), testes da camada tocada (`npm run test:bot`, `npm run test:api-cache`, `npm run test:web-validation`, `npm run test:web-format`, `npm run test:api-rate-limit`) e build aplicável (`npm run build:web`; `npm run build:api-limiter` se o limitador mudar). A matriz completa está em `.github/workflows/ci.yml`.
 - Regra de negócio nova ou corrigido de bug em `core` **precisa** de caso em test/sanity.ts com dados fictícios pequenos e resultado conhecido — e o teste novo tem que falhar no código antigo (confirme antes de confiar).
 - Erros previsíveis são tratados explicitamente (ex.: resposta da API do AODP vazia/velha emite dado ausente, nunca custo 0 silencioso); nada de catch genérico engolindo erro.
 - Dados grandes (bundles, universos de itens): chunking + cache; NÃO otimizar sem medir.
