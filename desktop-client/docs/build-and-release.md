@@ -24,6 +24,9 @@ Set-Location ..
 go build -o bin/albion-market-archive.exe .
 ```
 
+Compile a interface antes de `go test` ou `go build`: o ponto de entrada Go
+incorpora `frontend/dist` e falha se a pasta ainda não existir.
+
 O `prebuild` gera os índices estáticos de nomes PT-BR e inglês. Sem o banco de
 itens do core, o build continua possível e a interface usa IDs legíveis. O
 executável é compilado sem ser iniciado.

@@ -7,9 +7,10 @@ at runtime is the part that changed.
 
 ## WinPcap -> Npcap
 
-The installer used to bundle `thirdparty/WinPcap_4_1_3.exe` (from
-2013) and silently install it for every Windows user. This turned out
-to be broken for a large chunk of users: WinPcap can't open
+The upstream client installer used to bundle WinPcap (from 2013) and
+silently install it for every Windows user. This project does not ship
+an installer or install a packet driver. WinPcap turned out to be broken
+for a large chunk of users: it can't open
 Wintun/WireGuard-style virtual adapters at all (pure Layer-3, no
 Ethernet framing - WinPcap predates their existence by a decade), and
 is also unreliable on modern Windows 10/11 NDIS stacks even for
@@ -17,24 +18,11 @@ physical adapters when a VPN's own filter driver sits in the chain -
 which is exactly the setup a lot of users have (PIA, WireGuard, etc.).
 Symptom: capture opens with no error, sees zero packets.
 
-Fix was to stop bundling a driver at all and point users at
-[Npcap](https://npcap.com) instead - **not** a drop-in bundle
-replacement, because Npcap redistribution requires a paid OEM license
-(the Nmap Project's own guidance for free/open-source software is:
-don't bundle, detect its absence and link out). Two places now do
-that detection, because a bundled installer's check only ever catches
-a *fresh install*, not an existing user who already has old WinPcap
-and never re-runs the installer:
-
-1. **Install time**: `pkg/nsis/albiondata-client.nsi`'s `.onInit`
-   checks `HKLM\SOFTWARE\Npcap` (+ the `WOW6432Node` fallback for
-   32-bit-on-64-bit) via `ReadRegDWORD`/`IfErrors`, and offers to open
-   `https://npcap.com/#download` if it's missing. Doesn't block the
-   install either way, just warns.
-2. **Every startup**: `internal/pcapdriver` (Windows-only,
-   `checkCaptureDriver()` in `albiondata-client.go`, called from
-   `main()` right after the log hook is set up). This is the one that
-   actually matters for existing installs.
+The app points users at [Npcap](https://npcap.com) instead of bundling
+a driver. Npcap redistribution requires a paid OEM license, so the app
+does not include or install it. `internal/pcapdriver` checks for Npcap
+on every Windows startup and shows a warning with a download link when
+it is missing or only outdated WinPcap is detected.
 
 Npcap installs in "WinPcap API-compatible mode" by default, so no
 change was needed to `thirdparty/WpdPack/` or anything `gopacket/pcap`
@@ -72,11 +60,10 @@ if this ever needs to change.
 Surfacing is both a log line (via the existing log hook, so it lands in
 the dashboard's LogTail automatically) and a dedicated banner -
 `Status.DriverWarning`/`DriverHelpURL` in `internal/dashboard`, rendered
-by `Sidebar.svelte` above the counters, with a "Get Npcap" link when
-`DriverHelpURL` is set (opened via `Browser.OpenURL`, matching
-`Footer.svelte`'s external links). Log-only was considered and
-rejected - a log-only line is exactly what made the original bug take
-multiple sessions to diagnose the first time around.
+by `Sidebar.svelte` above the counters, with an Npcap download link when
+`DriverHelpURL` is set (opened through the system browser). Log-only was
+rejected because it made the original bug take multiple sessions to
+diagnose.
 
 ## The Wintun/PIA adapter bug (root cause, now fixed)
 

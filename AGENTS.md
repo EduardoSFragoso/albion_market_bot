@@ -2,7 +2,7 @@
 
 Diretrizes de desenvolvimento ancoradas nas regras gerais da pessoa mantenedora,
 adaptadas ao escopo deste projeto (Albion Online: site Cloudflare Pages +
-bot Discord em Cloudflare Workers + monorepo npm/TypeScript).
+bot Discord em Cloudflare Workers + app pessoal de desktop + monorepo).
 Checklists de apoio: [docs/auditoria-infra.md](docs/auditoria-infra.md) e
 [docs/configuracao-repositorio.md](docs/configuracao-repositorio.md).
 
@@ -19,17 +19,22 @@ Checklists de apoio: [docs/auditoria-infra.md](docs/auditoria-infra.md) e
 packages/core/   @albion/core — API AODP, itens/receitas (gerados), calculadoras
 apps/web/        site (Vite+React+Tailwind) + functions/api/* (Pages Functions)
 apps/bot/        Worker do Discord (interações HTTP puro, sem SDK)
+desktop-client/  app pessoal Windows (captura passiva, arquivo local e upload AODP)
 docs/            checklists (auditoria, configuração)
 handoff.md       contrato vivo do projeto — leia antes de mexer
 ```
 
 Comandos: `npm run build:data` (regenera itens/receitas dos dumps — requer rede),
 `npm run dev:web`, `npm run dev:bot`, `npm run bot:register`, `npm run typecheck`.
+No app desktop: `go test ./...` em `desktop-client`, e `npm test` / `npm run build`
+em `desktop-client/frontend`. O build do executável está em
+[`desktop-client/README.md`](desktop-client/README.md).
 Matriz completa da CI: `.github/workflows/ci.yml`.
 
 ## Qualidade, erros e testes
 
 - Antes de dar tarefa por concluída: `npm run typecheck`, sanity do core (`npx tsx packages/core/test/sanity.ts`), testes da camada tocada (`npm run test:bot`, `npm run test:api-cache`, `npm run test:web-validation`, `npm run test:web-format`, `npm run test:api-rate-limit`) e build aplicável (`npm run build:web`; `npm run build:api-limiter` se o limitador mudar). A matriz completa está em `.github/workflows/ci.yml`.
+- Mudanças no app desktop: `go test ./...` em `desktop-client`, `npm test` e `npm run build` em `desktop-client/frontend`; compile o `.exe` quando tocar integração Go/Wails. Testes de captura do jogo exigem confirmação e execução manual do mantenedor.
 - Regra de negócio nova ou corrigido de bug em `core` **precisa** de caso em test/sanity.ts com dados fictícios pequenos e resultado conhecido — e o teste novo tem que falhar no código antigo (confirme antes de confiar).
 - Erros previsíveis são tratados explicitamente (ex.: resposta da API do AODP vazia/velha emite dado ausente, nunca custo 0 silencioso); nada de catch genérico engolindo erro.
 - Dados grandes (bundles, universos de itens): chunking + cache; NÃO otimizar sem medir.

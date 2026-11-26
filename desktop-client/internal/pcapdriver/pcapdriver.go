@@ -1,8 +1,8 @@
 // Package pcapdriver detects the system's packet-capture driver state on
 // Windows - Npcap present, only the abandoned WinPcap present, or
 // neither - so the client can warn the user on startup instead of
-// silently failing to capture. This exists because the project's own
-// Windows installer used to bundle WinPcap (unmaintained since 2013,
+// silently failing to capture. The upstream Windows installer used to
+// bundle WinPcap (unmaintained since 2013,
 // unable to open Wintun/WireGuard-style VPN adapters at all) and many
 // existing installs still have it instead of Npcap.
 package pcapdriver

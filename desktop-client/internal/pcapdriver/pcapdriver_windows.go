@@ -49,8 +49,7 @@ func decide(npcapPresent, npcapAdminOnly, winPcapPresent, processElevated bool) 
 
 	if winPcapPresent {
 		return Warning{
-			Message: "Only the outdated WinPcap driver was detected. This client's installer " +
-				"used to install WinPcap, but we've moved to Npcap - WinPcap has been " +
+			Message: "Only the outdated WinPcap driver was detected. WinPcap has been " +
 				"unsupported since 2013 and cannot capture on modern VPN adapters " +
 				"(Wintun/WireGuard). " + npcapGuidance,
 			HelpURL: npcapDownloadURL,

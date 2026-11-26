@@ -64,6 +64,7 @@ apps/api-limiter/         Worker interno sem URL workers.dev, chamado por Servic
 apps/bot/                 Worker puro (sem SDK): Ed25519 + comandos /preco /craft /lucro /encantamento /oportunidades
   src/worker.ts           verificação de assinatura com janela temporal de ±5 min, PING, handlers (embeds PT-BR); /oportunidades usa DEFERRED (type 5) + followup via webhook da interação
   scripts/register-commands.mjs   registra os 5 comandos (PUT /applications/<id>/commands)
+desktop-client/           app pessoal Windows (Go + Wails + Svelte): captura passiva, dump local de ordens e preferências de envio ao AODP
 docs/                     auditoria-infra.md, configuracao-repositorio.md, scan-daemon.md (guia; execução manual)
 ```
 
@@ -87,6 +88,10 @@ vêm de `/api/search`.
 | `npm run test:web-validation` | limites e validação de entradas da API web |
 | `npm run test:api-rate-limit` | gate Pages + rate limit Worker (inclui IP, 429 e peso do `/rank`) |
 | `npm run build:api-limiter` | empacota o Worker em dry-run, sem publicar |
+| `go test ./...` em `desktop-client` | testes do app Go (captura, arquivo, preferências e interface de rede) |
+| `npm test` em `desktop-client/frontend` | testes de formatação e rótulos do arquivo local |
+| `npm run build` em `desktop-client/frontend` | gera interface e índices de nomes localizados |
+| `go build -o bin/albion-market-archive.exe .` em `desktop-client` | compila o app; não o inicia |
 
 Antes de declarar tarefa pronta: typecheck + build web + sanity (regra do AGENTS.md).
 
