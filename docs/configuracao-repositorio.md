@@ -34,7 +34,7 @@ GitHub → Settings → Rules → Rulesets → criar regra para `main`:
 | Regra | Por quê |
 |---|---|
 | Require pull request before merging | Toda mudança passa por PR revisável |
-| Require status checks: **CI** (matriz completa acima) + **CodeQL** (`Analyze (javascript-typescript)`) | Merge só com a rede de segurança verde — testes + análise de vulnerabilidade de código |
+| Require status checks: **CI** (matriz da seção 3) + **CodeQL** (`Analyze (javascript-typescript)`) | Merge só com a rede de segurança verde — testes + análise de vulnerabilidade de código |
 | Require linear history | Histórico limpo, fácil de reverter |
 | Block force pushes | Impossibilita histórico reescrito por acidente |
 
@@ -60,7 +60,7 @@ O fluxo natural fica: mudança → branch → PR → **CI + CodeQL verdes** → 
 O Cloudflare Pages também publica uma verificação de preview nos PRs. A CI não faz deploy
 de produção, não chama a API real do Albion e não publica secrets.
 
-`permissions: contents: read` no job — menos poder caso o token vaze. Atualize esta tabela
+O workflow declara `permissions: contents: read`, reduzindo o poder do token. Atualize esta tabela
 junto do workflow se os checks mudarem.
 
 ## 4. Dependabot
@@ -99,7 +99,9 @@ automático do Pages.
 
 Para reconstruir a configuração em outra conta: **Workers & Pages → Create → Pages →
 Connect to Git**, selecione o repositório e configure os valores acima. Publique primeiro
-o Worker privado do limitador com `cd apps/api-limiter && npm run deploy`.
+o Worker privado do limitador com `cd apps/api-limiter && npm run deploy`. Antes disso,
+defina em `apps/api-limiter/wrangler.toml` um `namespace_id` numérico ainda não usado
+naquela conta Cloudflare.
 
 O bot é independente do Pages: faça deploy de `apps/bot` com `npx wrangler deploy`.
 `DISCORD_PUBLIC_KEY`, `DISCORD_APPLICATION_ID` e `SITE_URL` são vars públicas do Worker;
