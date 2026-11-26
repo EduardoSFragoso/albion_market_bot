@@ -1,10 +1,10 @@
 # Scan daemon — alimentar o AODP com seus próprios scans
 
-> O objetivo aqui é **não escrever código**: existe cliente pronto da comunidade
-> (leitura passiva de pacotes, a mesma tecnologia que alimenta o AODP há anos).
-> O "daemon" é: instalar, deixar rodando enquanto joga, e seguir uma rotina de
-> varredura simples. Tudo o que este guia descreve é execução manual na sua
-> máquina — nada disto vai para deploy ou para o repositório em execução.
+> Este guia descreve o cliente público da comunidade e uma rotina manual de
+> contribuição. Para manter também um arquivo local próprio, este repositório
+> agora inclui [`desktop-client`](../desktop-client/README.md), uma versão
+> pessoal baseada no cliente de referência que salva os lotes localmente e os
+> envia ao AODP. Nenhuma das opções automatiza navegação ou ações no jogo.
 
 ## Como o dado nasce (o fluxo inteiro)
 
