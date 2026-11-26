@@ -43,7 +43,9 @@ O fluxo natural fica: mudança → branch → PR → **CI + CodeQL verdes** → 
 
 ## 3. CI e verificações de PR
 
-`.github/workflows/ci.yml` é a fonte da verdade para as verificações de GitHub Actions:
+`.github/workflows/ci.yml` é a fonte da verdade para a verificação `check` de GitHub Actions;
+`.github/workflows/codeql.yml` define a análise CodeQL avançada e publica
+`Analyze (javascript-typescript)`, exigido pelo ruleset:
 
 | Verificação | Comando |
 |---|---|
@@ -62,6 +64,13 @@ de produção, não chama a API real do Albion e não publica secrets.
 
 O workflow declara `permissions: contents: read`, reduzindo o poder do token. Atualize esta tabela
 junto do workflow se os checks mudarem.
+
+O workflow CodeQL também limita permissões a `actions: read`, `contents: read` e
+`security-events: write`, e analisa Actions + JavaScript/TypeScript nos PRs para `main`,
+pushes em `main` e semanalmente. A configuração CodeQL do repositório deve estar em
+**Advanced setup**; o **Default setup** desativa workflows avançados e bloqueia uploads.
+O job `Analyze (javascript-typescript)` deve continuar com esse nome porque é um check
+obrigatório no ruleset.
 
 ## 4. Dependabot
 
