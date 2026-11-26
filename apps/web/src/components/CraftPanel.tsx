@@ -111,6 +111,13 @@ export default function CraftPanel({ item, locale, premium }: Props) {
         <p className="py-6 text-center text-sm text-zinc-500">{t(locale, 'noRecipe')}</p>
       )}
 
+      {state === 'ok' && r && !r.ok && r.reason === 'missing-price' && (
+        <p className="py-6 text-center text-sm text-amber-600 dark:text-amber-400">
+          ⚠️ {t(locale, 'craftNoEstimate')}{' '}
+          {[...r.missingCities.map((id) => displayName(id, locale)), ...(r.missingSalePrice ? [sellCity] : [])].join(', ')}
+        </p>
+      )}
+
       {state === 'ok' && r?.ok && (
         <>
           <div className="grid gap-3 sm:grid-cols-4">

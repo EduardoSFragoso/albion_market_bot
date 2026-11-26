@@ -4,6 +4,36 @@ Leia este arquivo **antes** de mexer no repositório. Ele descreve estrutura, co
 contratos que não podem quebrar, armadilhas conhecidas e pendências. Atualizar **na
 mesma alteração** que mudar algo estrutural (regra do [AGENTS.md](AGENTS.md)).
 
+## Ponto salvo — 2026-11-25
+
+- Trabalho local no branch `codex/api-rate-limiter`: implementação do Worker interno
+  de rate limit e binding das Pages pronta para revisão; nada foi enviado, publicado ou
+  implantado.
+- Typecheck, build web, build das Pages Functions, dry-run do Worker e testes do
+  limitador passaram. O sanity do core passa fora do isolamento; no modo isolado o runtime
+  Node pode falhar ao consultar a conta do processo (`uv_os_get_passwd returned ENOMEM`).
+  `npm audit` reportou zero vulnerabilidades; `git diff --check` passou.
+- Para ativar: escolher um `namespace_id` exclusivo na conta Cloudflare, publicar o
+  Worker interno e depois deixar o deploy Git-connected das Pages aplicar o Service
+  Binding. O Worker e as Pages ainda não foram implantados com esta alteração.
+- Alterações locais em progresso: `/craft` agora invalida cálculo quando preços de
+  materiais ou de venda estão ausentes/antigos; `/craft` e `/rank` rejeitam cidades
+  desconhecidas; site e bot exibem aviso sem apresentar lucro parcial. Os testes novos
+  falharam no código antigo em cópia descartável e passam no código atualizado.
+- O bot limita o corpo da interação a 64 KiB antes de verificar assinatura; o cache
+  limita chamadas AODP únicas em voo a 64 por isolate. Preferências inválidas/indisponíveis
+  no navegador têm fallback seguro. Docs do Pages e limite de PRs do Dependabot alinhados.
+- Bot refatorado em módulos locais: `worker.ts` (dispatcher), `discord-security.ts`,
+  `site-api.ts`, `types.ts`, `common.ts` e um arquivo por comando. Os 11 testes passam;
+  as caracterizações de `/craft`, `/lucro` e `/encantamento` também passam contra uma cópia
+  temporária do Worker antigo. Typecheck, verificação sem símbolos locais não usados e
+  Wrangler dry-run (7,13 KiB gzip) passaram. Nada foi enviado, implantado ou publicado.
+- Caracterização iniciada antes da extração: `apps/bot/test/worker.test.mjs` cobre health
+  check, método inválido, comando desconhecido, `/preco` (incluindo sequência search →
+  prices → flip), `/oportunidades` (defer + PATCH de webhook), assinatura, janela temporal
+  e payload grande. Os 8 testes passam na implementação anterior; não houve mudança em
+  `apps/bot/src/worker.ts` neste bloco.
+
 ## 1. Visão geral
 
 Toolkit de mercado do Albion Online para as Américas (server `west`): site com
@@ -12,7 +42,8 @@ calculadoras + bot do Discord, pareados, ambos consultando o mesmo backend.
 ```
 Discord  ─┐
           ├─► apps/web/functions/api/*  (Pages Functions, proxy cacheado do AODP)
-Site     ─┘         └─► packages/core (@albion/core) ──► west.albion-online-data.com
+Site     ─┘         ├─► apps/api-limiter (Worker interno; rate limit por IP)
+                    └─► packages/core (@albion/core) ──► west.albion-online-data.com
 ```
 
 
@@ -39,6 +70,8 @@ apps/web/                 site (Vite + React + Tailwind v4)
   functions/api/[[route]].ts   backend compartilhado site+bot
   src/components/         SearchBar, PriceTable, PricesPanel, CraftPanel, FlipPanel, HistoryPanel, OpportunitiesPanel, EnchantPanel
   src/i18n.ts             dicionário PT/EN (site tem toggle de idioma + tema claro/escuro)
+apps/api-limiter/         Worker interno sem URL workers.dev, chamado por Service Binding das Pages Functions
+  src/worker.ts           rate limit aproximado por IP: 60 unidades/60s; /rank custa 10
 apps/bot/                 Worker puro (sem SDK): Ed25519 + comandos /preco /craft /lucro /encantamento /oportunidades
   src/worker.ts           verificação de assinatura com janela temporal de ±5 min, PING, handlers (embeds PT-BR); /oportunidades usa DEFERRED (type 5) + followup via webhook da interação
   scripts/register-commands.mjs   registra os 5 comandos (PUT /applications/<id>/commands)
@@ -63,6 +96,8 @@ vêm de `/api/search`.
 | `npm run test:bot` | testes de assinatura Discord, PING e janela temporal |
 | `npm run test:api-cache` | deduplicação de fetch e limite do cache do core |
 | `npm run test:web-validation` | limites e validação de entradas da API web |
+| `npm run test:api-rate-limit` | gate Pages + rate limit Worker (inclui IP, 429 e peso do `/rank`) |
+| `npm run build:api-limiter` | empacota o Worker em dry-run, sem publicar |
 
 Antes de declarar tarefa pronta: typecheck + build web + sanity (regra do AGENTS.md).
 
@@ -84,7 +119,13 @@ Respostas JSON com `content-type`, CORS `*`,
 | `/api/rank` | `tierMin, tierMax, enchants, maxItems (≤1500), buyMode, sellCity ('best'=maior lance), rrr, salesTax, setupFee, topN (≤250)` | `{ universeSize, scanned, skippedMissing, chunks, entries: RankEntry[], paramsOk }` |
 | `/api/enchant` | `item (id ou id@n), buyMode=instant\|order, rrr` | `{ server, baseId, rows: EnchantRow[] }` — uma linha por nível .0–.3 existente; `craftCost/buyPrice: null` = sem dado vivo; sufixo `@n` no input é removido antes (usa `enchantBaseId`) |
 
-Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper `num` trata `null`/`''` explicitamente — `Number(null)=0` já enganou uma vez: `/api/rank` primeira versão capava o universo em 1 item). Erros: `{ error: string }` com status 400/404/502 (nunca stack trace).
+Importante na 4a: parâmetros **ausentes/empty → default do endpoint** (helper `num` trata `null`/`''` explicitamente — `Number(null)=0` já enganou uma vez: `/api/rank` primeira versão capava o universo em 1 item). Erros: `{ error: string }` com status 400/404/429/502/503 (nunca stack trace). Respostas 429/503 usam `Cache-Control: no-store`; o restante mantém cache público de 60s.
+
+Antes do dispatch, a Function exige `CF-Connecting-IP` e consulta o Service Binding
+`API_LIMITER`; `X-Forwarded-For` não é usado. Sem IP/limitador ou se o serviço falhar,
+responde 503 (fail-closed). O Worker interno usa Rate Limiting binding (60 unidades por
+IP em 60s; `/rank` vale 10; demais rotas valem 1). O limite é aproximado por localidade,
+e usuários atrás do mesmo NAT compartilham cota. Não é um limite global rígido.
 
 Limites atuais da entrada: `search.q` até 100 caracteres; `/prices` aceita até 200 IDs
 por chamada; IDs podem ter até 100 caracteres e devem usar letras/números/`_` e
@@ -124,6 +165,9 @@ e qualidade; `/rank` aceita até quatro encantamentos entre 0 e 3.
 - **Workers free ~1 MB gzip:** bot não importa os JSONs de dados; `rank` (planejado) precisa universar itens sem importar índice + chunking de fetch.
 - **Subrequests do Cloudflare (free):** sem paralelismo agressivo contra o AODP; chunking com paralelismo 4 e cache. `/api/rank` T4–T6 ≈ 7 chunks de 200 ids (limite free ~50 subrequests/invocação).
 - Cache do core limitado a 256 chaves LRU, com deduplicação de chamadas simultâneas iguais; os TTLs seguem acima.
+- Chamadas únicas simultâneas ao AODP limitadas a 64 por isolate; acima do teto, novas chaves falham rápido.
+- Rate limit fica num Worker separado porque Pages Functions não expõe diretamente o binding. `apps/web/wrangler.toml` chama `albion-market-api-limiter` por Service Binding `API_LIMITER`; o Worker tem `workers_dev = false` e não importa dados do core.
+- Ordem de deploy: primeiro `npm run deploy --workspace @albion/api-limiter` (cria o Worker sem URL pública); depois o deploy automático de Pages na `main` ativa a chamada ao binding. `namespace_id` da configuração deve ser único na conta.
 - **`wrangler pages dev` não recompila quando só `packages/core` muda** (core é symlink em node_modules, fora do watcher). Editar um arquivo de `functions/` força rebuild. Deploy em produção nunca deve pegar esse estado (build CI roda do zero).
 - **Dashboard Cloudflare (2026):** o fluxo "Create application" mostra um formulário de **Worker** (com "Deploy command: npx wrangler deploy") — o create de **Pages** clássico fica escondido atrás do link **"Continue to Pages"** (última linha das opções). No formulário certo de Pages não existe Deploy command, e sim Build output directory + Root directory.
 - **AODP é serviço comunitário:** sempre gzip, respeitar throttle (`Throttled, be nice...` volta non-JSON → tratar como erro, não quebrar). Cachear no core (TTLs acima: 90s/600s/300s).
@@ -151,6 +195,7 @@ e qualidade; `/rank` aceita até quatro encantamentos entre 0 e 3.
 | 8 | Migrar o runtime do bot (Worker) pra **máquina local com Linux** (decisão 2026-11) — desenho ainda a definir; abre com a escolha de acesso: webhook + Cloudflare Tunnel (mantém HTTP puro, mínimo de código novo) vs. gateway websocket (nada exposto, mas BOT_TOKEN passa a viver na VM e o código é novo). Só executar quando o usuário disser que tem servidor preparado; nada foi preparado ainda | pendência futura (só a pedido) |
 | 9 | Majors do dependabot, 1 PR por vez: vite 8, @vitejs/plugin-react 6, react-dom 19, @cloudflare/workers-types 5, wrangler 4.166 (undici/esbuild/@fastify/busboy cobertos de brinde) — alertas de vuln zerados, CodeQL como check obrigatório do ruleset | ✅ feito (2026-11) |
 | 10 | Re-deploy do bot com wrangler 4 (`npx wrangler deploy` em apps/bot) + smoke `/preco` no Discord | ✅ feito (2026-11; worker 200 no healthcheck) |
+| 11 | Limite best-effort para `/api/*`: Worker interno + binding de serviço Pages; 60 unidades/60s/IP, `/rank` vale 10 | código preparado; publicar Worker manualmente antes do deploy automático de Pages |
 
 ## 8. Histórico estrutural
 

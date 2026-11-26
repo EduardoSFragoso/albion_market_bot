@@ -28,6 +28,7 @@ export interface CraftResponse {
     profit: number;
     profitPctOfCost: number;
     missingCities: string[];
+    missingSalePrice?: boolean;
   };
   cheapest?: { id: string; city: string; unitPrice: number }[];
   error?: string;

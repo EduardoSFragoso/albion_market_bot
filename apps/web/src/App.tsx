@@ -14,22 +14,45 @@ import { getItem } from '@albion/core';
 
 type Tab = 'rank' | 'prices' | 'craft' | 'enchant' | 'flip' | 'history';
 
-export default function App() {
-  const [locale, setLocale] = useState<Locale>(() => (localStorage.getItem('locale') as Locale) ?? 'pt');
-  const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
-  const [item, setItem] = useState<ItemIndexEntry | null>(() => {
-    const saved = localStorage.getItem('lastItem');
-    return saved ? JSON.parse(saved) : null;
-  });
-  const [tab, setTab] = useState<Tab>('rank');
-  const [premium, setPremium] = useState(localStorage.getItem('premium') !== '0');
+function readPreference(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
 
-  useEffect(() => { localStorage.setItem('locale', locale); }, [locale]);
-  useEffect(() => { localStorage.setItem('premium', premium ? '1' : '0'); }, [premium]);
+function savePreference(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Preferences are optional; the site remains usable when storage is blocked.
+  }
+}
+
+function readSavedItem(): ItemIndexEntry | null {
+  try {
+    const value: unknown = JSON.parse(readPreference('lastItem') ?? 'null');
+    if (!value || typeof value !== 'object' || !('id' in value) || typeof value.id !== 'string') return null;
+    return getItem(value.id) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export default function App() {
+  const [locale, setLocale] = useState<Locale>(() => readPreference('locale') === 'en' ? 'en' : 'pt');
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
+  const [item, setItem] = useState<ItemIndexEntry | null>(readSavedItem);
+  const [tab, setTab] = useState<Tab>('rank');
+  const [premium, setPremium] = useState(readPreference('premium') !== '0');
+
+  useEffect(() => { savePreference('locale', locale); }, [locale]);
+  useEffect(() => { savePreference('premium', premium ? '1' : '0'); }, [premium]);
   useEffect(() => {
-    if (item) localStorage.setItem('lastItem', JSON.stringify(item));
+    if (item) savePreference('lastItem', JSON.stringify(item));
   }, [item]);
-  useEffect(() => { document.documentElement.classList.toggle('dark', dark); localStorage.setItem('theme', dark ? 'dark' : 'light'); }, [dark]);
+  useEffect(() => { document.documentElement.classList.toggle('dark', dark); savePreference('theme', dark ? 'dark' : 'light'); }, [dark]);
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'rank', label: t(locale, 'tabRank') },

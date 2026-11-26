@@ -78,8 +78,8 @@ Se algo desses aparecer versionado: remover do índice (`git rm --cached`), comm
 ## 7. Conectar com o Cloudflare (quando for a hora do deploy)
 
 1. Cloudflare Dashboard → Workers & Pages → **Create** → Pages → Connect to Git → repo.
-2. Build command: `npm run build:web` · Output dir: `apps/web/dist` (root do projeto).
-3. Environment variables (produção): `AODP_SERVER=west` + as públicas (`SITE_URL`, `DISCORD_PUBLIC_KEY`, `DISCORD_APPLICATION_ID`). **`DISCORD_BOT_TOKEN` não vai no Pages** — vai como `wrangler secret put` no Worker do bot.
+2. Root directory: `apps/web`; build command: `npm install --prefix ../.. && npm run build:web --prefix ../..`; output directory: `dist`.
+3. Pages usa `AODP_SERVER=west`. As variáveis públicas `SITE_URL`, `DISCORD_PUBLIC_KEY` e `DISCORD_APPLICATION_ID` pertencem ao Worker do bot; `DISCORD_BOT_TOKEN` fica como secret desse Worker.
 4. Deploy do bot é separado: `npx wrangler deploy` em `apps/bot/` + `wrangler secret put DISCORD_BOT_TOKEN`.
 
 **O agente não executa esses passos** — apenas prepara arquivos/comandos para a pessoa mantenedora rodar.

@@ -55,6 +55,7 @@ export interface CraftResult {
   profit: number; // revenue - totalCost
   profitPctOfCost: number;
   missingCities: string[];
+  missingSalePrice?: boolean;
 }
 
 export interface CraftCalcArgs {
@@ -73,9 +74,9 @@ export function calcCraft(args: CraftCalcArgs): CraftResult {
     return { ok: false, reason: 'no-recipe', outputId: itemId, amountPerCraft: 1, materials: [], materialCost: 0, totalCost: 0, salePrice: 0, revenue: 0, profit: 0, profitPctOfCost: 0, missingCities: [] };
   }
 
-  const ingredientIds = [...new Set(recipe.resources.map((r) => r.id))];
   const outs = prices.filter((p) => p.item_id === itemId && p.city === sellCity);
-  const outPrice = outs.find((p) => p.quality === 1) ?? outs[0];
+  const outPrice = outs.find((p) => p.quality === 1 && livePrice(p) && unitPrice(p, 'instant', 'sell') > 0)
+    ?? outs.find((p) => livePrice(p) && unitPrice(p, 'instant', 'sell') > 0);
 
   const missingCities: string[] = [];
   const materials = recipe.resources.map((r) => {
@@ -114,6 +115,7 @@ export function calcCraft(args: CraftCalcArgs): CraftResult {
 
   const materialCost = materials.reduce((s, m) => s + m.cost, 0) / (recipe.amount || 1);
   const salePrice = unitPrice(outPrice, 'instant', 'sell');
+  const missingSalePrice = salePrice <= 0;
   // revenue applies both taxes, matching the flip calculator and the bot's /lucro
   // (sales tax 8%/4% + order setup fee 2.5%/1.5%) — see user spec.
   const revenue = salePrice * recipe.amount * (1 - settings.salesTaxPct / 100) * (1 - settings.setupFeePct / 100);
@@ -121,7 +123,8 @@ export function calcCraft(args: CraftCalcArgs): CraftResult {
   const profit = revenue - totalCost;
 
   return {
-    ok: true,
+    ok: missingCities.length === 0 && !missingSalePrice,
+    ...((missingCities.length > 0 || missingSalePrice) ? { reason: 'missing-price' } : {}),
     outputId: itemId,
     amountPerCraft: recipe.amount,
     materials,
@@ -132,6 +135,7 @@ export function calcCraft(args: CraftCalcArgs): CraftResult {
     profit,
     profitPctOfCost: totalCost > 0 ? profit / totalCost : 0,
     missingCities,
+    missingSalePrice,
   };
 }
 

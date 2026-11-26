@@ -59,6 +59,22 @@ eq(craft.profitPctOfCost, (revenue - matCost) / matCost, 'craft profitPctOfCost'
 assert(craft.materials.every((m) => m.usedCity !== 'Narnia'), 'cidades fake ignoradas');
 assert(craft.materials.find((m) => m.id === 'T4_RUNE')!.usedCity === 'Caerleon', 'rune comprada onde tem preço (fallback)');
 
+// Preço incompleto/antigo não pode produzir um resultado de lucro válido.
+const missingIngredientCraft = calcCraft({
+  itemId: 'T4_BAG@1', recipe: gRecipe,
+  prices: [prices[0], prices[1], prices[7], prices[8]],
+  buyCity: 'Bridgewatch', sellCity: 'Black Market',
+  settings: { rrr: 0.152, buyMode: 'instant', salesTaxPct: 8, setupFeePct: 2.5 },
+});
+assert(!missingIngredientCraft.ok && missingIngredientCraft.reason === 'missing-price', 'craft com ingrediente sem preço não declara lucro válido');
+const staleOutputCraft = calcCraft({
+  itemId: 'T4_BAG@1', recipe: gRecipe,
+  prices: [...prices.filter((p) => p.item_id !== 'T4_BAG@1'), mk('T4_BAG@1', 'Black Market', 11000, 11000, true)],
+  buyCity: 'Bridgewatch', sellCity: 'Black Market',
+  settings: { rrr: 0.152, buyMode: 'instant', salesTaxPct: 8, setupFeePct: 2.5 },
+});
+assert(!staleOutputCraft.ok && staleOutputCraft.reason === 'missing-price', 'craft com preço de saída velho não declara lucro válido');
+
 // ---- flip: best route (rows de T4_BAG@1) ----
 const flip = calcBestFlip({ prices: [prices[6], prices[7], prices[8]], settings: { salesTaxPct: 4, setupFeePct: 0 } });
 assert(flip !== null && flip.profitPerUnit > 0 && flip.sellCity === 'Narnia', 'flip acha a melhor cidade', JSON.stringify(flip));

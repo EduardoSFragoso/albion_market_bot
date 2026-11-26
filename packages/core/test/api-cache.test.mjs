@@ -41,3 +41,25 @@ test('remove entradas antigas quando o cache atinge o limite', async (t) => {
   await fetchPrices('west', [ids[0]], { ttlMs: 600_000 });
   assert.equal(calls, 258);
 });
+
+test('rejeita chamadas únicas acima do teto em voo', async (t) => {
+  const previousFetch = globalThis.fetch;
+  const releases = [];
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    return new Promise((resolve) => releases.push(() => resolve(response)));
+  };
+  t.after(() => { globalThis.fetch = previousFetch; });
+
+  const requests = Array.from({ length: 65 }, (_, i) =>
+    fetchPrices('west', [`T4_CACHE_IN_FLIGHT_AUDIT_${i}`]),
+  );
+  const resultsPromise = Promise.allSettled(requests);
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  for (const release of releases) release();
+  const results = await resultsPromise;
+
+  assert.equal(calls, 64);
+  assert.equal(results.filter((result) => result.status === 'rejected').length, 1);
+});
