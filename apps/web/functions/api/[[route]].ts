@@ -13,7 +13,10 @@ import {
   parseCommaList, parseQualities,
 } from '../../api-validation';
 
-interface Env { AODP_SERVER?: string }
+interface Env {
+  AODP_SERVER?: string;
+  API_LIMITER?: Fetcher;
+}
 
 // absent/empty param -> default. (Number(null)+Number('') = 0, so guard explicitly.)
 const num = (v: string | null, d: number) => {
@@ -24,6 +27,7 @@ const num = (v: string | null, d: number) => {
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
 const parseLocations = (v: string | null) =>
   parseCommaList(v, MAX_LOCATIONS, (location) => (MAIN_CITIES as readonly string[]).includes(location));
+const isMainCity = (city: string) => (MAIN_CITIES as readonly string[]).includes(city);
 
 export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
   const url = new URL(request.url);
@@ -40,8 +44,36 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
       },
     });
   const bad = (msg: string, status = 400) => json({ error: msg }, status);
+  const gateError = (status: 429 | 503, message: string) =>
+    new Response(JSON.stringify({ error: message }), {
+      status,
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+        'access-control-allow-origin': '*',
+        'cache-control': 'no-store',
+        ...(status === 429 ? { 'retry-after': '60' } : {}),
+      },
+    });
 
   try {
+    const clientIp = request.headers.get('CF-Connecting-IP')?.trim();
+    if (!clientIp || !env.API_LIMITER) return gateError(503, 'rate limiter unavailable');
+
+    let limitResponse: Response;
+    try {
+      limitResponse = await env.API_LIMITER.fetch('https://api-limiter.internal/check', {
+        method: 'POST',
+        headers: {
+          'x-albion-client-ip': clientIp,
+          'x-albion-route-class': path === '/rank' ? 'rank' : 'standard',
+        },
+      });
+    } catch {
+      return gateError(503, 'rate limiter unavailable');
+    }
+    if (limitResponse.status === 429) return gateError(429, 'rate limit exceeded');
+    if (!limitResponse.ok) return gateError(503, 'rate limiter unavailable');
+
     if (path === '/') {
       return json({
         service: 'albion-market-api',
@@ -100,6 +132,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
 
       const buyCity = url.searchParams.get('buyCity') || 'Caerleon';
       const sellCity = url.searchParams.get('sellCity') || 'Black Market';
+      if (!isMainCity(buyCity) || !isMainCity(sellCity)) return bad('invalid city');
       const buyMode = url.searchParams.get('buyMode') === 'order' ? 'order' : 'instant';
       const salesTaxPct = clamp(num(url.searchParams.get('salesTax'), 8), 0, 25);
       const setupFeePct = clamp(num(url.searchParams.get('setupFee'), 2.5), 0, 10);
@@ -135,6 +168,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
       const maxItems = clamp(num(url.searchParams.get('maxItems'), 1200), 1, 1500);
       const buyMode = url.searchParams.get('buyMode') === 'order' ? 'order' : 'instant';
       const sellCity = url.searchParams.get('sellCity') || 'Black Market';
+      if (sellCity !== 'best' && !isMainCity(sellCity)) return bad('invalid sell city');
       const rrr = clamp(num(url.searchParams.get('rrr'), 0.152), 0, 0.6);
       const salesTaxPct = clamp(num(url.searchParams.get('salesTax'), 8), 0, 25);
       const setupFeePct = clamp(num(url.searchParams.get('setupFee'), 2.5), 0, 10);

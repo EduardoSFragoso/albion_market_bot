@@ -25,6 +25,7 @@ export const MAIN_CITIES = [
 // in-memory cache (survives across requests within a warm isolate)
 type CacheEntry = { at: number; value: unknown };
 const MAX_CACHE_ENTRIES = 256;
+const MAX_IN_FLIGHT_REQUESTS = 64;
 const cache = new Map<string, CacheEntry>();
 const inFlight = new Map<string, Promise<unknown>>();
 
@@ -40,6 +41,9 @@ async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Prom
 
   const pending = inFlight.get(key);
   if (pending) return pending as Promise<T>;
+  if (inFlight.size >= MAX_IN_FLIGHT_REQUESTS) {
+    throw new Error('AODP concurrent request limit reached');
+  }
 
   const request = Promise.resolve()
     .then(fn)

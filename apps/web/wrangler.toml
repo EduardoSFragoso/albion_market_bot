@@ -6,3 +6,7 @@ pages_build_output_dir = "dist"
 
 [vars]
 AODP_SERVER = "west"
+
+[[services]]
+binding = "API_LIMITER"
+service = "albion-market-api-limiter"

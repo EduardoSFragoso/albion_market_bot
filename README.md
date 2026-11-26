@@ -11,6 +11,7 @@ albion_market_bot/
 ├── packages/core/        ← @albion/core: API, itens, receitas, calculadoras
 │   └── scripts/build-data.mjs   (gera items.json + recipes.json dos dumps)
 ├── apps/web/             ← site (Vite/React/Tailwind) + functions/api/* (Pages Functions)
+├── apps/api-limiter/      ← Worker interno de rate limit (sem endpoint público)
 └── apps/bot/             ← bot do Discord (Cloudflare Worker + interactions webhook)
 ```
 
@@ -18,7 +19,7 @@ albion_market_bot/
 
 1. Os preços vêm da API pública do **Albion Online Data Project** (`west.albion-online-data.com`), alimentada pelos uploads dos jogadores rodando o [cliente do projeto](https://github.com/ao-data/albiondata-client/releases).
 2. Itens e receitas vêm dos dumps oficiais do jogo — o pipeline normaliza nomes **PT-BR**, encantamentos (`.1`–`.4`) e materiais (`T4_CLOTH_LEVEL1@1`, runas/souls/relics).
-3. O site hospeda no Cloudflare Pages; as `functions/api/*` fazem proxy com cache. O bot (Workers) consulta essas mesmas URLs — nada de lógica duplicada.
+3. O site hospeda no Cloudflare Pages; as `functions/api/*` fazem proxy com cache e consultam o Worker interno de rate limit antes de processar pedidos. O bot (Workers) consulta essas mesmas URLs — nada de lógica duplicada.
 
 ## Desenvolvimento local
 
@@ -35,14 +36,17 @@ npm run typecheck
 npx tsc --noEmit -p packages/core/tsconfig.json
 npm run test:bot
 npm run test:api-cache
+npm run test:api-rate-limit
 npm run test:web-validation
+npm run build:api-limiter
 npx tsx packages/core/test/sanity.ts
 npm run build:web
 ```
 
 Os testes do bot verificam assinatura, PING e janela temporal de cinco minutos. Os
 testes do core cobrem deduplicação de chamadas simultâneas e limite de 256 entradas
-no cache; os da API web cobrem formato e limites de entrada.
+no cache; os da API web cobrem formato e limites de entrada, e os do rate limiter
+cobrem bloqueio antes do AODP, IP confiável e peso do `/rank`.
 
 No PowerShell, se a política local bloquear `npm.ps1`/`npx.ps1`, use `npm.cmd` e
 `npx.cmd` nos mesmos comandos.
@@ -50,15 +54,26 @@ No PowerShell, se a política local bloquear `npm.ps1`/`npx.ps1`, use `npm.cmd` 
 Para testar a API localmente junto do site:
 
 ```bash
-cd apps/web && npm run build && npx wrangler pages dev dist --port 8788
+# Terminal 1 — Worker interno do limitador
+cd apps/api-limiter && npm run dev
+# Terminal 2 — Pages Functions + site
+cd apps/web && npm run build && npx wrangler pages dev dist --service API_LIMITER=albion-market-api-limiter --port 8788
 ```
+
+O `workers.dev` do limitador fica desativado; a Pages Function o chama por Service Binding.
+O limite inicial é de 60 unidades por minuto por IP; `/api/rank` consome 10. O contador
+é aproximado por localidade Cloudflare e IPs compartilhados dividem a mesma cota.
 
 ## Deploy do site (Cloudflare Pages)
 
 1. Suba o repositório pro GitHub.
 2. No dash do Cloudflare: **Workers & Pages → Create → Pages → Connect to Git**.
-3. Build command: `npm run build:web` · Output dir: `apps/web/dist` (com Node 20+).
+3. Root directory: `apps/web`; build command: `npm install --prefix ../.. && npm run build:web --prefix ../..`; output directory: `dist` (Node 20+).
 4. Pronto — as functions em `apps/web/functions` vão junto automaticamente.
+
+Antes de ativar a nova versão das Pages, publique o Worker interno uma vez:
+`cd apps/api-limiter && npm run deploy`. Ele não tem URL pública; a Pages Function
+usa o Service Binding `API_LIMITER`. A Pages passa a chamá-lo no deploy seguinte.
 
 (String no terminal: `cd apps/web && npm run build && npx wrangler pages deploy dist`.)
 

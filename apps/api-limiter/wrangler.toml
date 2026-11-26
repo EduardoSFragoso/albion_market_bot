@@ -1,0 +1,12 @@
+name = "albion-market-api-limiter"
+main = "src/worker.ts"
+compatibility_date = "2026-11-25"
+workers_dev = false
+
+[[ratelimits]]
+name = "API_RATE_LIMITER"
+namespace_id = "9182637401"
+
+[ratelimits.simple]
+limit = 60
+period = 60

@@ -39,6 +39,12 @@ jobs:
       - name: Testes de validação da API web
         run: npm run test:web-validation
 
+      - name: Testes do rate limiter da API
+        run: npm run test:api-rate-limit
+
+      - name: Build do Worker limitador (dry-run)
+        run: npm run build:api-limiter
+
       - name: Build do site (o que o Pages publica)
         run: npm run build:web
 
