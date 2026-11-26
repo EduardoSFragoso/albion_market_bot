@@ -6,3 +6,8 @@ dist/
 *.local
 .DS_Store
 .env*
+market-orders.jsonl
+upload-preferences.json
+desktop-client/frontend/public/item-name-index.pt.json
+desktop-client/frontend/public/item-name-index.en.json
+desktop-client/bin/act

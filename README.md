@@ -1,9 +1,10 @@
-# Albion Market Tools (site + bot do Discord)
+# Albion Market Tools (site, bot do Discord e app pessoal)
 
 Ferramentas de mercado para **Albion Online** — servidor **Americas (oeste)**:
 
 - 🌐 **Site** (Cloudflare Pages): busca de itens (PT-BR/EN, light/dark), consulta de preços por cidade/qualidade, **calculadora de custo de craft** (retorno de recursos, impostos, modo de compra), **lucro/arbitragem** (incluindo flip pro Black Market), histórico de preços, a aba **Oportunidades** — scan em massa dos itens craftáveis ranqueados por margem de lucro — e a aba **Encantamento** — comprar pronto vs. craftar em cada nível (.0–.3).
 - 🤖 **Bot do Discord** (Cloudflare Workers, free tier): `/preco`, `/craft`, `/lucro`, `/encantamento` e `/oportunidades` respondem usando **a mesma API do site**.
+- 🖥️ **App pessoal para Windows** (`desktop-client/`): interface PT-BR/EN, arquivo local das ordens de mercado observadas durante o jogo e envio do mesmo lote ao AODP.
 - 📦 **`@albion/core`**: lógica compartilhada — cliente da API do [Albion Online Data Project](https://www.albion-online-data.com), banco de itens/receitas gerado dos dumps do jogo (`ao-data/ao-bin-dumps`), e as calculadoras.
 
 ```
@@ -12,8 +13,14 @@ albion_market_bot/
 │   └── scripts/build-data.mjs   (gera items.json + recipes.json dos dumps)
 ├── apps/web/             ← site (Vite/React/Tailwind) + functions/api/* (Pages Functions)
 ├── apps/api-limiter/      ← Worker interno de rate limit (sem endpoint público)
-└── apps/bot/             ← bot do Discord (Cloudflare Worker + interactions webhook)
+├── apps/bot/             ← bot do Discord (Cloudflare Worker + interactions webhook)
+└── desktop-client/       ← app pessoal Windows: arquivo local + envio ao AODP
 ```
+
+O app pessoal e seu fluxo de desenvolvimento estão descritos em
+[`desktop-client/README.md`](desktop-client/README.md). Ele guarda localmente
+as ordens de mercado observadas durante o jogo e continua enviando os mesmos
+lotes ao AODP; a interface pode ser alternada entre português e inglês.
 
 ## Como funciona
 
@@ -112,7 +119,7 @@ Depois disso o bot responde `/preco T4_BAG`, `/craft item:T5_CLOTH`, `/lucro ite
 
 ## Roadmap
 
-- [ ] Scan daemon: contribuir com seus próprios scans (clientes da comunidade, leitura passiva) — guia pronto em [docs/scan-daemon.md](docs/scan-daemon.md)
+- [x] Guia para contribuir scans com o cliente da comunidade (leitura passiva; execução manual na máquina do usuário, sem daemon próprio): [docs/scan-daemon.md](docs/scan-daemon.md)
 - [x] Rank de melhores flushes/crafts entre vários itens (tipo ScanAlbion) — aba Oportunidades no site + `/oportunidades` no bot
 - [x] Lucro de encantamento comparando comprar pronto vs. craftar .0/.1/.2 — aba Encantamento no site + `/encantamento` no bot
 
