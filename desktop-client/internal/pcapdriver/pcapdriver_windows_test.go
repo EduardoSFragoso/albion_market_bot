@@ -2,7 +2,10 @@
 
 package pcapdriver
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestDecide_NpcapAllUsers_NoWarning(t *testing.T) {
 	got := decide(true, false, true, false)
@@ -35,6 +38,9 @@ func TestDecide_OnlyWinPcap_WarnsWithDownloadLink(t *testing.T) {
 	}
 	if got.HelpURL != npcapDownloadURL {
 		t.Fatalf("decide(only WinPcap present) HelpURL = %q, want %q", got.HelpURL, npcapDownloadURL)
+	}
+	if strings.Contains(strings.ToLower(got.Message), "installer") {
+		t.Fatalf("decide(only WinPcap present) message refers to an installer that this app does not provide: %q", got.Message)
 	}
 }
 

@@ -29,7 +29,8 @@ aberto, diariamente. As preferências de envio ficam em
 Desligar uma categoria interrompe seu envio futuro; a cópia local de ordens
 continua ativa. O app não se inicia com o Windows: abra-o manualmente. No
 Windows, o console fica oculto por padrão e pode ser reaberto pelo menu do ícone
-na bandeja.
+na bandeja. O projeto não distribui instalador nem atualiza o executável
+automaticamente; compile o app conforme o guia de build.
 
 ## Requisitos no Windows
 
