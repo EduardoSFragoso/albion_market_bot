@@ -4,6 +4,17 @@ Leia este arquivo **antes** de mexer no repositório. Ele descreve estrutura, co
 contratos que não podem quebrar, armadilhas conhecidas e pendências. Atualizar **na
 mesma alteração** que mudar algo estrutural (regra do [AGENTS.md](AGENTS.md)).
 
+## Ponto salvo — 2026-11-26 (workflow CodeQL)
+
+- O ruleset de `main` exige `check` e `Analyze (javascript-typescript)` emitido por
+  GitHub Actions. O workflow `.github/workflows/codeql.yml` restaura esse job para
+  Actions e JavaScript/TypeScript; as ações estão fixadas por SHA.
+- Para aceitar o upload da análise, em **Settings → Security → Advanced Security →
+  CodeQL analysis**, trocar de **Default setup** para **Advanced setup** (desabilitar
+  Default setup). Não remover nem renomear o check obrigatório do ruleset.
+- Validar após habilitar Advanced setup: a análise do PR deve concluir e enviar resultados;
+  o PR Dependabot #28 deve reportar `Analyze (javascript-typescript)` junto ao `check`.
+
 ## Ponto salvo — 2026-11-26 (após merge e deploy)
 
 - PR #21 (`codex/api-rate-limiter`) foi mesclado em `main` no commit `a327a67`.
