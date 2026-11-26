@@ -4,35 +4,24 @@ Leia este arquivo **antes** de mexer no repositório. Ele descreve estrutura, co
 contratos que não podem quebrar, armadilhas conhecidas e pendências. Atualizar **na
 mesma alteração** que mudar algo estrutural (regra do [AGENTS.md](AGENTS.md)).
 
-## Ponto salvo — 2026-11-25
+## Ponto salvo — 2026-11-26 (após merge e deploy)
 
-- Trabalho local no branch `codex/api-rate-limiter`: implementação do Worker interno
-  de rate limit e binding das Pages pronta para revisão; nada foi enviado, publicado ou
-  implantado.
-- Typecheck, build web, build das Pages Functions, dry-run do Worker e testes do
-  limitador passaram. O sanity do core passa fora do isolamento; no modo isolado o runtime
-  Node pode falhar ao consultar a conta do processo (`uv_os_get_passwd returned ENOMEM`).
-  `npm audit` reportou zero vulnerabilidades; `git diff --check` passou.
-- Para ativar: escolher um `namespace_id` exclusivo na conta Cloudflare, publicar o
-  Worker interno e depois deixar o deploy Git-connected das Pages aplicar o Service
-  Binding. O Worker e as Pages ainda não foram implantados com esta alteração.
-- Alterações locais em progresso: `/craft` agora invalida cálculo quando preços de
-  materiais ou de venda estão ausentes/antigos; `/craft` e `/rank` rejeitam cidades
-  desconhecidas; site e bot exibem aviso sem apresentar lucro parcial. Os testes novos
-  falharam no código antigo em cópia descartável e passam no código atualizado.
-- O bot limita o corpo da interação a 64 KiB antes de verificar assinatura; o cache
-  limita chamadas AODP únicas em voo a 64 por isolate. Preferências inválidas/indisponíveis
-  no navegador têm fallback seguro. Docs do Pages e limite de PRs do Dependabot alinhados.
-- Bot refatorado em módulos locais: `worker.ts` (dispatcher), `discord-security.ts`,
-  `site-api.ts`, `types.ts`, `common.ts` e um arquivo por comando. Os 11 testes passam;
-  as caracterizações de `/craft`, `/lucro` e `/encantamento` também passam contra uma cópia
-  temporária do Worker antigo. Typecheck, verificação sem símbolos locais não usados e
-  Wrangler dry-run (7,13 KiB gzip) passaram. Nada foi enviado, implantado ou publicado.
-- Caracterização iniciada antes da extração: `apps/bot/test/worker.test.mjs` cobre health
-  check, método inválido, comando desconhecido, `/preco` (incluindo sequência search →
-  prices → flip), `/oportunidades` (defer + PATCH de webhook), assinatura, janela temporal
-  e payload grande. Os 8 testes passam na implementação anterior; não houve mudança em
-  `apps/bot/src/worker.ts` neste bloco.
+- PR #21 (`codex/api-rate-limiter`) foi mesclado em `main` no commit `a327a67`.
+  As verificações obrigatórias do PR passaram.
+- Worker privado `albion-market-api-limiter` publicado no Cloudflare. As Pages de
+  produção publicaram o commit mesclado e receberam o Service Binding `API_LIMITER`.
+  Smoke test HTTPS ao endpoint `/api/search` na implantação específica retornou `200`.
+- O limite é best-effort: 60 unidades por 60 segundos e por IP; `/rank` consome 10.
+  Não foi feito teste de carga para provocar `429` em produção. O comportamento `429`
+  está coberto pelos testes do Worker; o limitador é aproximado por localidade Cloudflare.
+- Verificações locais: typecheck, sanity do core, testes de bot/API/cache/validação e
+  builds passaram; `npm audit` reportou zero vulnerabilidades. O sanity do core precisou
+  ser executado fora do isolamento do ambiente; isolado, Node pode falhar com
+  `uv_os_get_passwd returned ENOMEM`. O build web mantém um aviso de chunk grande.
+- A alteração também invalida cálculo de `/craft` quando preços estão ausentes ou velhos,
+  valida cidades em `/craft` e `/rank`, limita o corpo de interações do bot a 64 KiB,
+  limita chamadas AODP únicas em voo a 64 por isolate e valida preferências locais do
+  navegador. O Worker do bot foi modularizado e seus comandos foram caracterizados.
 
 ## 1. Visão geral
 
@@ -195,7 +184,7 @@ e qualidade; `/rank` aceita até quatro encantamentos entre 0 e 3.
 | 8 | Migrar o runtime do bot (Worker) pra **máquina local com Linux** (decisão 2026-11) — desenho ainda a definir; abre com a escolha de acesso: webhook + Cloudflare Tunnel (mantém HTTP puro, mínimo de código novo) vs. gateway websocket (nada exposto, mas BOT_TOKEN passa a viver na VM e o código é novo). Só executar quando o usuário disser que tem servidor preparado; nada foi preparado ainda | pendência futura (só a pedido) |
 | 9 | Majors do dependabot, 1 PR por vez: vite 8, @vitejs/plugin-react 6, react-dom 19, @cloudflare/workers-types 5, wrangler 4.166 (undici/esbuild/@fastify/busboy cobertos de brinde) — alertas de vuln zerados, CodeQL como check obrigatório do ruleset | ✅ feito (2026-11) |
 | 10 | Re-deploy do bot com wrangler 4 (`npx wrangler deploy` em apps/bot) + smoke `/preco` no Discord | ✅ feito (2026-11; worker 200 no healthcheck) |
-| 11 | Limite best-effort para `/api/*`: Worker interno + binding de serviço Pages; 60 unidades/60s/IP, `/rank` vale 10 | código preparado; publicar Worker manualmente antes do deploy automático de Pages |
+| 11 | Limite best-effort para `/api/*`: Worker interno + binding de serviço Pages; 60 unidades/60s/IP, `/rank` vale 10 | ✅ publicado e ativo (2026-11; PR #21, commit `a327a67`; smoke HTTPS `/api/search` = 200; sem teste de carga em produção) |
 
 ## 8. Histórico estrutural
 
