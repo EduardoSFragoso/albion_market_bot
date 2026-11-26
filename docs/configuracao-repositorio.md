@@ -66,8 +66,9 @@ O workflow declara `permissions: contents: read`, reduzindo o poder do token. At
 junto do workflow se os checks mudarem.
 
 O workflow CodeQL também limita permissões a `actions: read`, `contents: read` e
-`security-events: write`, e analisa Actions + JavaScript/TypeScript nos PRs para `main`,
-pushes em `main` e semanalmente. A configuração CodeQL do repositório deve estar em
+`security-events: write`, e analisa Actions, Go e JavaScript/TypeScript nos PRs para `main`,
+pushes em `main` e semanalmente. Go usa `autobuild`; as linguagens interpretadas usam
+`none`. A configuração CodeQL do repositório deve estar em
 **Advanced setup**; o **Default setup** desativa workflows avançados e bloqueia uploads.
 O job `Analyze (javascript-typescript)` deve continuar com esse nome porque é um check
 obrigatório no ruleset.

@@ -312,16 +312,14 @@ func (config *config) setupDebugEvents() {
 	config.DebugEvents = make(map[int]bool)
 	if config.DebugEventsString != "" {
 		for _, event := range strings.Split(config.DebugEventsString, ",") {
-			number, err := strconv.Atoi(event)
-			if err == nil {
+			if number, ok := parseDebugID(event); ok {
 				config.DebugEvents[number] = true
 			}
 		}
 	}
 	if config.DebugEventsBlacklistString != "" {
 		for _, event := range strings.Split(config.DebugEventsBlacklistString, ",") {
-			number, err := strconv.Atoi(event)
-			if err == nil {
+			if number, ok := parseDebugID(event); ok {
 				config.DebugEvents[number] = false
 			}
 		}
@@ -342,8 +340,7 @@ func (config *config) setupDebugOperations() {
 	config.DebugOperations = make(map[int]bool)
 	if config.DebugOperationsString != "" {
 		for _, operation := range strings.Split(config.DebugOperationsString, ",") {
-			number, err := strconv.Atoi(operation)
-			if err == nil {
+			if number, ok := parseDebugID(operation); ok {
 				config.DebugOperations[number] = true
 			}
 		}
@@ -351,8 +348,7 @@ func (config *config) setupDebugOperations() {
 
 	if config.DebugOperationsBlacklistString != "" {
 		for _, operation := range strings.Split(config.DebugOperationsBlacklistString, ",") {
-			number, err := strconv.Atoi(operation)
-			if err == nil {
+			if number, ok := parseDebugID(operation); ok {
 				config.DebugOperations[number] = false
 			}
 		}
@@ -367,4 +363,14 @@ func (config *config) setupDebugOperations() {
 		log.Debugf("[%v] operation: [%v]%v", verb, number, OperationType(number))
 	}
 
+}
+
+// Debug event and operation IDs are uint16 values on the wire. Reject invalid
+// config values before converting them to the narrower enum types in debug logs.
+func parseDebugID(value string) (int, bool) {
+	number, err := strconv.ParseUint(value, 10, 16)
+	if err != nil {
+		return 0, false
+	}
+	return int(number), true
 }

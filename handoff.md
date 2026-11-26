@@ -4,16 +4,18 @@ Leia este arquivo **antes** de mexer no repositório. Ele descreve estrutura, co
 contratos que não podem quebrar, armadilhas conhecidas e pendências. Atualizar **na
 mesma alteração** que mudar algo estrutural (regra do [AGENTS.md](AGENTS.md)).
 
-## Ponto salvo — 2026-11-26 (workflow CodeQL)
+## Ponto salvo — 2026-11-26 (CodeQL avançado + achados Go)
 
-- O ruleset de `main` exige `check` e `Analyze (javascript-typescript)` emitido por
-  GitHub Actions. O workflow `.github/workflows/codeql.yml` restaura esse job para
-  Actions e JavaScript/TypeScript; as ações estão fixadas por SHA.
-- Para aceitar o upload da análise, em **Settings → Security → Advanced Security →
-  CodeQL analysis**, trocar de **Default setup** para **Advanced setup** (desabilitar
-  Default setup). Não remover nem renomear o check obrigatório do ruleset.
-- Validar após habilitar Advanced setup: a análise do PR deve concluir e enviar resultados;
-  o PR Dependabot #28 deve reportar `Analyze (javascript-typescript)` junto ao `check`.
+- PR #29 restaurou o CodeQL avançado; Default setup foi desabilitado. O ruleset exige
+  `check` e `Analyze (javascript-typescript)` — preserve esse nome e integração.
+- A análise de `desktop-client/client/config.go` encontrou dois alertas
+  `go/incorrect-integer-conversion` nos logs de debug. Eles vinham de valores Atoi fora
+  do intervalo `uint16`; os testes `config_debug_ids_test.go` falham no código antigo e
+  cobrem faixa válida, rejeição fora de faixa e precedência da blacklist.
+- A matriz CodeQL precisa incluir Actions, Go e JavaScript/TypeScript. Go usa `autobuild`;
+  o workflow deve ser executado no PR e na `main` para atualizar os resultados Go.
+- PR #28 atualizou `golang.org/x/crypto` para `v0.52.0`; após a atualização do grafo,
+  a API do GitHub confirmou zero alertas Dependabot abertos em 2026-11-26.
 
 ## Ponto salvo — 2026-11-26 (após merge e deploy)
 
