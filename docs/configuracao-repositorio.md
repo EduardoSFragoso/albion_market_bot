@@ -1,15 +1,15 @@
 # Configuração do repositório (remoto + proteções)
 
-Adaptada das diretrizes gerais para este projeto (monorepo npm/TS, site no **Cloudflare
-Pages**, bot em **Cloudflare Workers**). Fato importante: **o bot não precisa de deploy
-de site** — publicar o repo no GitHub já basta para o CI; o único botão de publish é o
-do Pages, que a pessoa mantenedora aperta.
+Adaptada para este monorepo npm/TypeScript, com site no **Cloudflare Pages** e bot em
+**Cloudflare Workers**. Este repositório já está conectado ao GitHub e ao Pages; os
+passos de criação abaixo servem para um projeto novo ou para reconstruir a configuração.
+Merge em `main` inicia o deploy automático do site; o Worker do bot é implantado à parte.
 
-**Regra central: o agente nunca altera config de conta, dashboard do GitHub ou do
-Cloudflare. Este documento é o guia do que a pessoa mantenedora configura manualmente;
-o agente apenas cria os arquivos do repo e sugere os passos.**
+**Regra central: alterações em conta e dashboards do GitHub ou Cloudflare exigem
+autorização explícita, conforme `AGENTS.md`. Este documento registra o estado atual e
+serve de guia de bootstrap; não repita passos de criação em uma instalação existente.**
 
-## 1. Criar o remoto e conectar
+## 1. Criar o remoto (somente para um projeto novo)
 
 1. GitHub → New repository → nome `albion_market_bot` → **público ou privado, sem nenhum arquivo inicial** (nada de README/licença gerada, para o primeiro push não conflitar).
 2. Não colar segredo em lugar nenhum — nem em issue, nem em descrição.
@@ -22,33 +22,46 @@ git push -u origin main
 
 3. Se usar SSH e ainda não tiver chave: `ssh-keygen -t ed25519` e cadastrar a pública no GitHub. **Nunca** enviar a chave privada para uma IA ou colar em chat.
 
-## 2. Branch protection / ruleset (recomendado)
+## 2. Ruleset da branch principal
 
-GitHub → Settings → Branches → Add ruleset, para `main`:
+Neste repositório, `main` já exige PR, CI e CodeQL, e somente **Rebase and merge** está
+habilitado. Confira o estado atual em GitHub → Settings → Rules →
+Rulesets antes de alterar a configuração. Para outro repositório, use esta lista como
+configuração inicial:
+
+GitHub → Settings → Rules → Rulesets → criar regra para `main`:
 
 | Regra | Por quê |
 |---|---|
 | Require pull request before merging | Toda mudança passa por PR revisável |
-| Require status checks: **CI** (typecheck + build + sanity) + **CodeQL** (`Analyze (javascript-typescript)`) | Merge só com a rede de segurança verde — testes + análise de vulnerabilidade de código |
+| Require status checks: **CI** (matriz completa acima) + **CodeQL** (`Analyze (javascript-typescript)`) | Merge só com a rede de segurança verde — testes + análise de vulnerabilidade de código |
 | Require linear history | Histórico limpo, fácil de reverter |
 | Block force pushes | Impossibilita histórico reescrito por acidente |
 
 O fluxo natural fica: mudança → branch → PR → **CI + CodeQL verdes** → **Rebase and merge** em `main`
 (único método permitido: merge commit e squash estão desativados no repo).
 
-## 3. CI (GitHub Actions)
+## 3. CI e verificações de PR
 
-`.github/workflows/ci.yml` (o agente cria o arquivo; o resto é automático no push):
+`.github/workflows/ci.yml` é a fonte da verdade para as verificações de GitHub Actions:
 
-| Passo | Comando | Protege |
-|---|---|---|
-| Typecheck | `tsc --noEmit` em core/web/bot | Nada quebra tipos |
-| Build web | `npm run build:web` | O que o Pages publica compila |
-| Sanity do core | `npx tsx packages/core/test/sanity.ts` | Cálculos (craft/flip/rank) batem com resultado esperado |
+| Verificação | Comando |
+|---|---|
+| Typecheck de todos os workspaces | `npm run typecheck` |
+| Sanity do core | `npx tsx packages/core/test/sanity.ts` |
+| Testes do bot | `npm run test:bot` |
+| Testes do cache do core | `npm run test:api-cache` |
+| Validação da API web | `npm run test:web-validation` |
+| Testes do rate limiter | `npm run test:api-rate-limit` |
+| Build dry-run do limitador | `npm run build:api-limiter` |
+| Build do site | `npm run build:web` |
+| Sintaxe do registro de comandos | `node --check apps/bot/scripts/register-commands.mjs` |
 
-O que a CI **não** faz: deploy (isso é manual, para o Cloudflare Pages/Workers, e só quando a pessoa decidir), testes que chamam a API do Albion (env é instável/restrito), publicar secrets.
+O Cloudflare Pages também publica uma verificação de preview nos PRs. A CI não faz deploy
+de produção, não chama a API real do Albion e não publica secrets.
 
-`permissions: contents: read` no job — menos poder caso o token vaze.
+`permissions: contents: read` no job — menos poder caso o token vaze. Atualize esta tabela
+junto do workflow se os checks mudarem.
 
 ## 4. Dependabot
 
@@ -61,7 +74,7 @@ O que a CI **não** faz: deploy (isso é manual, para o Cloudflare Pages/Workers
 
 - **Issues/labels:** usar para ideias e bugs (ex.: label `api`, `bot`, `site`, `rank`). O agente usa issues para planejar mudanças multi-arquivo quando pedido.
 - **Colaboradores:** só quem realmente trabalha no projeto; github convidado como write, nunca owner.
-- **Licença:** decidir se o repo fica público — MIT costuma bastar; o agente NÃO adiciona arquivo de licença sem pedido.
+- **Licença:** este repositório já inclui `LICENSE` (MIT). Para outro projeto, escolha a licença antes de publicar.
 
 ## 6. Higiene de arquivos (já resolvido, conferir de vez em quando)
 
@@ -75,11 +88,22 @@ git ls-files | grep -Ei '\.dev\.vars$|\.env$|node_modules|dist/|scratch'   # dev
 
 Se algo desses aparecer versionado: remover do índice (`git rm --cached`), commit, e tratar como possível segredo seguindo [auditoria-infra.md](auditoria-infra.md#se-achar-um-segredo).
 
-## 7. Conectar com o Cloudflare (quando for a hora do deploy)
+## 7. Cloudflare: configuração atual e bootstrap
 
-1. Cloudflare Dashboard → Workers & Pages → **Create** → Pages → Connect to Git → repo.
-2. Root directory: `apps/web`; build command: `npm install --prefix ../.. && npm run build:web --prefix ../..`; output directory: `dist`.
-3. Pages usa `AODP_SERVER=west`. As variáveis públicas `SITE_URL`, `DISCORD_PUBLIC_KEY` e `DISCORD_APPLICATION_ID` pertencem ao Worker do bot; `DISCORD_BOT_TOKEN` fica como secret desse Worker.
-4. Deploy do bot é separado: `npx wrangler deploy` em `apps/bot/` + `wrangler secret put DISCORD_BOT_TOKEN`.
+Configuração deste projeto: Pages `albion-market-web`, site em
+`https://albion-market-web.pages.dev`, root `apps/web`, build
+`npm install --prefix ../.. && npm run build:web --prefix ../..`, saída `dist` e
+`AODP_SERVER=west`. O Pages também empacota `apps/web/functions`; o binding `API_LIMITER`
+chama o Worker privado `albion-market-api-limiter`. Merge em `main` inicia o deploy
+automático do Pages.
 
-**O agente não executa esses passos** — apenas prepara arquivos/comandos para a pessoa mantenedora rodar.
+Para reconstruir a configuração em outra conta: **Workers & Pages → Create → Pages →
+Connect to Git**, selecione o repositório e configure os valores acima. Publique primeiro
+o Worker privado do limitador com `cd apps/api-limiter && npm run deploy`.
+
+O bot é independente do Pages: faça deploy de `apps/bot` com `npx wrangler deploy`.
+`DISCORD_PUBLIC_KEY`, `DISCORD_APPLICATION_ID` e `SITE_URL` são vars públicas do Worker;
+somente `DISCORD_BOT_TOKEN` deve ser configurado com `wrangler secret put`.
+
+Alterações de conta, secrets reais e deploy seguem a autorização explícita definida em
+`AGENTS.md`; não copie valores secretos para o repositório ou para o chat.

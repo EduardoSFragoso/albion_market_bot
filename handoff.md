@@ -177,7 +177,7 @@ e qualidade; `/rank` aceita até quatro encantamentos entre 0 e 3.
 | 1 | `rank.ts` no core + `/api/rank` + aba Oportunidades + `/oportunidades` no bot | ✅ feito |
 | 2 | Casos no sanity.ts com resultado conhecido (craft c/ setup fee, rank, universe) | ✅ feito |
 | 3 | Comando `/oportunidades` — followup edit (deferido type 5 + PATCH no webhook) | ✅ validado em produção (2026-11) |
-| 4 | CI (GitHub Actions) + dependabot + template de PR (arquivos); configurar remoto e ativar ruleset é manual | ✅ arquivos criados |
+| 4 | CI (GitHub Actions) + Dependabot + template de PR | ✅ configurados; `main` protegida por ruleset com CI + CodeQL e Rebase and merge |
 | 5 | Deploy — site: Cloudflare Pages GIT-CONNECTED (root `apps/web`, build c/ `--prefix ../..`, output via `pages_build_output_dir`); bot: `npx wrangler deploy` + `wrangler secret put DISCORD_BOT_TOKEN`; Interactions Endpoint validado (PING verde) | ✅ no ar (2026-11) |
 | 6 | Comparação de encantamento (`enchant.ts` no core + `/api/enchant` + aba Encantamento + `/encantamento` no bot) | ✅ feito |
 | 7 | Scan daemon — **não há código a escrever**: guia em docs/scan-daemon.md (instalar cliente da comunidade + rotina de varredura manual). Execução é na máquina do usuário; nada disso é deployável pelo agente | ✅ guia entregue |
