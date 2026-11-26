@@ -36,7 +36,7 @@ Matriz completa da CI: `.github/workflows/ci.yml`.
 
 ## Segurança (específica deste projeto)
 
-- Segredos que **nunca** entram no código/git: `DISCORD_BOT_TOKEN`, chaves de qualquer API. Nomes de variáveis em `.dev.vars.example`, valores em `.dev.vars` (gitignored) em dev e `wrangler secret put` em produção.
+- Segredos que **nunca** entram no código/git: `DISCORD_BOT_TOKEN` e chaves secretas de APIs. Nomes de variáveis em `.dev.vars.example`, valores em `.dev.vars` (gitignored) em dev e `wrangler secret put` em produção.
 - `DISCORD_PUBLIC_KEY`, `DISCORD_APPLICATION_ID` e `SITE_URL` são públicos e podem ficar no `wrangler.toml`.
 - No frontend só existem chaves feitas para serem públicas. As functions envolvem a API do AODP e **não expõem** nada além dos endpoints documentados no handoff.
 - CORS das functions: atualmente `*` (site e bot consultam, sem cookies). Se um dia houver login/cookies, restringir por origem imediatamente.

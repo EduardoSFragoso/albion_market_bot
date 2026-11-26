@@ -26,8 +26,11 @@ albion_market_bot/
 ```bash
 npm install
 npm run build:data   # gera packages/core/src/data/{items,recipes}.json (já vem gerado no repo)
-npm run dev:web      # site em http://localhost:5173
+npm run dev:web      # interface Vite em http://localhost:5173 (sem Pages Functions/API local)
 ```
+
+Para usar a API junto com o site, siga também a seção abaixo “Para testar a API localmente junto do site”;
+ela inicia o Worker limitador e as Pages Functions locais.
 
 Para validar as mudanças localmente (Node 24, como na CI):
 
