@@ -12,7 +12,7 @@ Mascare valores e hosts em qualquer saída enviada a uma IA.
 1. Auditoria **sem alterações** (este documento).
 2. Segredos: rotacionar o que estiver exposto, antes de qualquer refatoração.
 3. Rede de segurança: sanity de `core` com dados fictícios + validação contra API real.
-4. CI e proteção da branch principal (quando houver remoto).
+4. CI e proteção da branch principal (este repo já tem remoto e ruleset; revisar periodicamente no GitHub).
 5. Validação de entrada e contratos da API `/api/*`.
 6. Refatorações, uma etapa por vez, com a rede de segurança verde.
 7. `handoff.md` atualizado.
@@ -32,7 +32,7 @@ git ls-files | grep -Ei '\.dev\.vars$|\.env|\.pem|\.key|dump|backup'
 git log --all --diff-filter=A --name-only --format= | grep -Ei '\.dev\.vars$|\.env|\.pem|\.key|dump' | sort -u
 ```
 
-- Detector de segredos local (gitleaks) antes de abrir o repo público.
+- Detector de segredos local (gitleaks) antes da primeira publicação; em repo público, repetir periodicamente e após qualquer suspeita de vazamento.
 - No código de frontend só podem existir chaves feitas para serem públicas:
   - OK públicas: `DISCORD_PUBLIC_KEY`, `DISCORD_APPLICATION_ID`, `SITE_URL`, `AODP_SERVER`.
   - **NUNCA:** `DISCORD_BOT_TOKEN` (só em `.dev.vars` local ou `wrangler secret put`).
@@ -107,17 +107,19 @@ grep -rEn 'fetch\(' apps/bot/src apps/web/functions | grep -v 'SITE_URL\|albion-
 | Camada | Proteção |
 |---|---|
 | `core` (cálculo) | `test/sanity.ts` com dados fictícios de resultado conhecido; caso novo para todo bug corrigido, provando que falha no código antigo |
-| `apps/web` | TSC estrito + build; contrato das functions documentado no handoff |
-| `apps/bot` | TSC estrito + teste de assinatura (401 sem/ruim assinatura, PING 200) |
+| `apps/web` | TSC estrito + validação de entradas + build; contrato das functions documentado no handoff |
+| `apps/bot` | TSC estrito + testes de assinatura, PING, replay e comandos |
+| `apps/api-limiter` | Testes para limite, peso por rota e falha fechada; build dry-run |
+| Cache AODP | Testes para deduplicação em voo e teto de entradas |
 | Dados gerados (`src/data/*.json`) | Regenerar via `npm run build:data` e **validar contra a API real** (formato `@n` / `_LEVELn@n` já queimado uma vez) |
 | Dependências | Dependabot + `npm audit` |
 
 ## 6. CI e deploy
 
-- CI (GitHub Actions) roda typecheck de todos os workspaces + build do site + sanity do core. `permissions: contents: read`.
-- A CI gera **exatamente** o que o Pages publica; nada de artefato manual.
-- Proteção da branch: quando houver remoto, ver [docs/configuracao-repositorio.md](docs/configuracao-repositorio.md) (ruleset, CI como portão do merge).
-- **Deploy: o agente não faz deploy nem toca no dashboard do Cloudflare** — entrega comandos prontos e a pessoa executa.
+- A matriz completa e atualizada da GitHub Actions fica em [`.github/workflows/ci.yml`](../.github/workflows/ci.yml): typecheck, sanity, testes das camadas, dry-run do limitador, build do site e checagem do script de registro.
+- O check do Cloudflare Pages é separado e valida o preview do PR. A CI não faz deploy de produção nem chama a API real do Albion; o Pages publica automaticamente quando `main` recebe um merge.
+- O deploy do bot e do Worker limitador é separado (`wrangler deploy`). Segredos e alterações de conta Cloudflare seguem a autorização explícita do `AGENTS.md`.
+- A branch `main` usa ruleset; estado e configuração estão descritos em [docs/configuracao-repositorio.md](configuracao-repositorio.md).
 
 ## O que o agente não faz sem confirmação explícita
 

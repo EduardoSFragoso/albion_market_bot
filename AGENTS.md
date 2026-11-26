@@ -25,10 +25,11 @@ handoff.md       contrato vivo do projeto — leia antes de mexer
 
 Comandos: `npm run build:data` (regenera itens/receitas dos dumps — requer rede),
 `npm run dev:web`, `npm run dev:bot`, `npm run bot:register`, `npm run typecheck`.
+Matriz completa da CI: `.github/workflows/ci.yml`.
 
 ## Qualidade, erros e testes
 
-- Antes de dar tarefa por concluída: `npx tsc --noEmit` em cada workspace tocado + build de `apps/web` + `packages/core` sanity (`npx tsx packages/core/test/sanity.ts`).
+- Antes de dar tarefa por concluída: `npm run typecheck`, sanity do core (`npx tsx packages/core/test/sanity.ts`), testes da camada tocada (`npm run test:bot`, `npm run test:api-cache`, `npm run test:web-validation`, `npm run test:api-rate-limit`) e build aplicável (`npm run build:web`; `npm run build:api-limiter` se o limitador mudar). A matriz completa está em `.github/workflows/ci.yml`.
 - Regra de negócio nova ou corrigido de bug em `core` **precisa** de caso em test/sanity.ts com dados fictícios pequenos e resultado conhecido — e o teste novo tem que falhar no código antigo (confirme antes de confiar).
 - Erros previsíveis são tratados explicitamente (ex.: resposta da API do AODP vazia/velha emite dado ausente, nunca custo 0 silencioso); nada de catch genérico engolindo erro.
 - Dados grandes (bundles, universos de itens): chunking + cache; NÃO otimizar sem medir.
@@ -52,7 +53,7 @@ Comandos: `npm run build:data` (regenera itens/receitas dos dumps — requer red
 
 ## Git e colaboração
 
-- Commits com assunto objetivo até 70 caracteres, detalhes no corpo. Nunca commitar direto na `main` em repositório remoto compartilhado — hoje (local, mantenedor único) commits diretos em `main` são aceitáveis e registrados no handoff.md; quando tiver remoto, migrar para branch + PR.
+- Commits com assunto objetivo até 70 caracteres, detalhes no corpo. Neste repositório remoto, nunca commitar direto na `main`: toda mudança entra por branch + PR e merge por **Rebase and merge**, conforme o ruleset registrado no `handoff.md`.
 - Artefatos derivados alterados entram no MESMO commit (ex.: `src/data/*.json` gerados junto do build-data).
 - Antes de dar por concluída uma tarefa grande: revisão própria do diff (erros, duplicação, complexidade desnecessária) e checagens do item "Qualidade".
 

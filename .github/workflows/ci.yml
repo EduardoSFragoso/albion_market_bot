@@ -1,7 +1,7 @@
 name: CI
 
-# Portão do merge (ver docs/configuracao-repositorio.md): roda o mesmo que
-# o AGENTS pede antes de "tarefa concluída" — typecheck, build do site e sanity do core.
+# Portão do merge (ver docs/configuracao-repositorio.md): roda a matriz de validação
+# descrita no AGENTS — typecheck, sanity, testes por camada e builds.
 on:
   push:
     branches: [main]
