@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./presentation": "./src/presentation.ts",
     "./data/items.json": "./src/data/items.json",
     "./data/recipes.json": "./src/data/recipes.json"
   },

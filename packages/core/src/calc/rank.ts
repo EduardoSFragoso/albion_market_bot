@@ -4,7 +4,7 @@
 // and calc/flip.ts. This module only adds batch specifics: universe selection,
 // chunked price fetching (AODP throttle + Cloudflare subrequest limits) and scoring.
 import type { ItemIndexEntry, MarketPrice, Recipe } from '../types';
-import { ITEMS, RECIPES } from '../items';
+import { ITEMS, RECIPES, recipeOptions } from '../items';
 import { unitPrice, livePrice, type PriceMode } from './craft';
 import { cheapestCityFor, craftMaterialCost } from './flip';
 import { fetchPrices, MAIN_CITIES, type AodpServer } from '../api';
@@ -94,8 +94,9 @@ export function scoreCraftItem(
   opts: Required<Pick<RankOptions, 'buyMode' | 'sellCity' | 'rrr' | 'salesTaxPct' | 'setupFeePct' | 'requireComplete'>>,
 ): RankEntry | null {
   const rows = prices.filter((p) => p.quality === 1);
-  const { cost: materialCost, missing } = craftMaterialCost(recipe, rows, { buyMode: opts.buyMode, rrr: opts.rrr });
-  if (missing.length === recipe.resources.length) return null; // nothing priced at all
+  const material = craftMaterialCost(recipe, rows, { buyMode: opts.buyMode, rrr: opts.rrr });
+  const { cost: materialCost, missing, recipe: selectedRecipe } = material;
+  if (missing.length === selectedRecipe.resources.length) return null; // nothing priced at all
   if (opts.requireComplete && missing.length) return null;
 
   // Sale: instant sell (buy_price_max) at sellCity, or best live bid across cities.
@@ -114,7 +115,7 @@ export function scoreCraftItem(
 
   const netPrice = salePrice * (1 - opts.salesTaxPct / 100) * (1 - opts.setupFeePct / 100);
   const profit = netPrice - materialCost;
-  const buyCity = [...new Set(cheapestCityFor(recipe, rows, opts.buyMode).map((c) => (c.city === '—' ? [] : [c.city])).flat())].join('+') || '—';
+  const buyCity = [...new Set(cheapestCityFor(selectedRecipe, rows, opts.buyMode).map((c) => (c.city === '—' ? [] : [c.city])).flat())].join('+') || '—';
 
   return {
     itemId: item.id, en: item.en, pt: item.pt,
@@ -142,7 +143,9 @@ export async function rankOpportunities(opts: RankOptions): Promise<RankResult> 
   const recipeOf = (id: string): Recipe | undefined => RECIPES[id];
   const ingIds = new Set<string>();
   for (const item of universe) {
-    for (const r of recipeOf(item.id)!.resources) ingIds.add(r.id);
+    for (const option of recipeOptions(recipeOf(item.id)!)) {
+      for (const r of option.resources) ingIds.add(r.id);
+    }
   }
   const ids = [...new Set([...universe.map((i) => i.id), ...ingIds])];
 
@@ -174,7 +177,7 @@ export async function rankOpportunities(opts: RankOptions): Promise<RankResult> 
       if (arr) rows.push(...arr);
     };
     push(item.id);
-    for (const r of recipe.resources) push(r.id);
+    for (const option of recipeOptions(recipe)) for (const r of option.resources) push(r.id);
     const entry = scoreCraftItem(item, recipe, rows, {
       buyMode, sellCity, rrr, salesTaxPct, setupFeePct,
       requireComplete: opts.requireComplete !== false,

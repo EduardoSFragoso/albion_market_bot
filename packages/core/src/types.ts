@@ -13,10 +13,20 @@ export interface ItemIndexEntry {
 export interface RecipeResource {
   id: string;
   count: number;
+  /** Maximum units returned by RRR; absent means the normal RRR applies. */
+  maxReturnAmount?: number;
+}
+
+export interface RecipeAlternative {
+  resources: RecipeResource[];
+  amount: number;
+  silver: number;
 }
 
 export interface Recipe {
   resources: RecipeResource[];
+  /** Other valid resource sets for crafting the same output. */
+  alternatives?: RecipeAlternative[];
   amount: number;
   silver: number;
 }

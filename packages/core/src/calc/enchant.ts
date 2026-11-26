@@ -5,7 +5,7 @@
 // em qualquer cidade — incluir Black Market é legítimo p/ COMPRAR (jogadores
 // despejam ofertas lá; excluí-lo só vale p/ vender pro NPC).
 import type { MarketPrice } from '../types';
-import { getItem, RECIPES } from '../items';
+import { getItem, RECIPES, recipeOptions } from '../items';
 import { livePrice, type PriceMode } from './craft';
 import { craftMaterialCost } from './flip';
 
@@ -15,6 +15,7 @@ export interface EnchantRow {
   en: string;
   pt: string;
   hasRecipe: boolean;
+  ingredients: Array<{ id: string; count: number; en: string; pt: string; ench: number }>;
   buyPrice: number | null; // menor oferta viva instantânea (qualquer cidade, incl. Black Market); null = sem dado vivo
   buyCity: string | null;
   craftCost: number | null; // craftar: custo por unidade (materiais mais baratos, RRR); null = sem receita ou nenhum preço
@@ -63,11 +64,21 @@ export function compareEnchants(
     }
 
     const recipe = RECIPES[outputId];
+    let ingredients: EnchantRow['ingredients'] = [];
     let craftCost: number | null = null;
     let craftCities = '—';
     let missing: string[] = [];
     if (recipe) {
       const ing = craftMaterialCost(recipe, prices, opts);
+      ingredients = ing.recipe.resources.map((resource) => {
+        const ingredient = getItem(resource.id);
+        return {
+          ...resource,
+          en: ingredient?.en ?? resource.id,
+          pt: ingredient?.pt || ingredient?.en || resource.id,
+          ench: ingredient?.ench ?? 0,
+        };
+      });
       craftCities = ing.cities;
       missing = ing.missing;
       if (ing.cost > 0 && ing.missing.length === 0) craftCost = ing.cost;
@@ -85,7 +96,7 @@ export function compareEnchants(
 
     rows.push({
       ench: n, outputId, en: item.en, pt: item.pt,
-      hasRecipe: !!recipe,
+      hasRecipe: !!recipe, ingredients,
       buyPrice, buyCity: buyPrice !== null ? buyCity : null,
       craftCost, craftCities, missing,
       cheaper, savings, savingsPct,

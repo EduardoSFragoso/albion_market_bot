@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { calcBestFlip, iconUrl } from '@albion/core';
+import { iconUrl } from '@albion/core/presentation';
 import type { MarketPrice } from '@albion/core';
+import type { FlipResult } from '@albion/core';
 import { api } from '../api';
 import type { Locale } from '../i18n';
 import { t } from '../i18n';
@@ -12,6 +13,7 @@ interface Route { buyCity: string; sellCity: string; profit: number; pct: number
 
 export default function FlipPanel({ itemId, locale, premium }: Props) {
   const [prices, setPrices] = useState<MarketPrice[] | null>(null);
+  const [best, setBest] = useState<FlipResult | null>(null);
   const [err, setErr] = useState('');
   const tax = premium ? 4 : 8;
   const fee = premium ? 1.5 : 2.5;
@@ -19,16 +21,15 @@ export default function FlipPanel({ itemId, locale, premium }: Props) {
   useEffect(() => {
     let alive = true;
     setPrices(null); setErr('');
-    api.prices(itemId, 1)
-      .then((d) => alive && setPrices(d.prices))
+    api.flip({ item: itemId, salesTax: tax, setupFee: fee })
+      .then((d) => { if (alive) { setPrices(d.prices); setBest(d.best); } })
       .catch((e) => alive && setErr(String(e.message ?? e)));
     return () => { alive = false; };
-  }, [itemId]);
+  }, [itemId, tax, fee]);
 
   if (err) return <p className="py-6 text-center text-sm text-red-600">{t(locale, 'error')}: {err}</p>;
   if (!prices) return <p className="py-6 text-center text-sm text-zinc-500">{t(locale, 'loading')}</p>;
 
-  const best = calcBestFlip({ prices, settings: { salesTaxPct: tax, setupFeePct: fee }, sellMode: 'order' });
   const live = prices.filter((p) => p.quality === 1 && (p.sell_price_min > 0 || p.buy_price_max > 0));
 
   // rank all city pairs

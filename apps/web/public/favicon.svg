@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Albion Market Tools</title>
+  <rect width="64" height="64" rx="14" fill="#18181b" />
+  <circle cx="32" cy="32" r="22" fill="#f59e0b" />
+  <circle cx="32" cy="32" r="17" fill="#18181b" />
+  <path d="M22 41V32h6v9zm7 0V23h6v18zm7 0V28h6v13z" fill="#fbbf24" />
+</svg>

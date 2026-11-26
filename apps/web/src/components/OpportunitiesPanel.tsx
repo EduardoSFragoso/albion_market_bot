@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { iconUrl, displayName } from '@albion/core';
+import { iconUrl, displayItemName } from '@albion/core/presentation';
 import type { RankEntry } from '@albion/core';
 import { api } from '../api';
 import type { Locale } from '../i18n';
@@ -9,7 +9,7 @@ import { fmt } from './PriceTable';
 interface Props {
   locale: Locale;
   premium: boolean;
-  onOpen: (id: string) => void;
+  onOpen: (entry: RankEntry) => void;
 }
 
 interface Filters {
@@ -107,7 +107,7 @@ export default function OpportunitiesPanel({ locale, premium, onOpen }: Props) {
               {entries.map((r, i) => (
                 <tr
                   key={r.itemId}
-                  onClick={() => onOpen(r.itemId)}
+                  onClick={() => onOpen(r)}
                   className="cursor-pointer border-b border-zinc-100 last:border-0 hover:bg-zinc-50 dark:border-zinc-800/60 dark:hover:bg-zinc-800/40"
                 >
                   <td className="px-3 py-2">
@@ -115,7 +115,7 @@ export default function OpportunitiesPanel({ locale, premium, onOpen }: Props) {
                       <span className="w-6 shrink-0 text-right text-xs tabular-nums text-zinc-400">{i + 1}</span>
                       <img src={iconUrl(r.itemId, 64)} alt="" className="h-8 w-8 shrink-0" />
                       <div className="min-w-0">
-                        <div className="truncate font-medium text-zinc-800 dark:text-zinc-200">{displayName(r.itemId, locale)}</div>
+                        <div className="truncate font-medium text-zinc-800 dark:text-zinc-200">{displayItemName(r, locale)}</div>
                         <div className="truncate text-xs text-zinc-500 dark:text-zinc-400">
                           T{r.tier}{r.ench ? `.${r.ench}` : ''} · {r.sellCity}
                         </div>

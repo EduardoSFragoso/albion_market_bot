@@ -1,7 +1,8 @@
 // Flip / arbitrage margins: buy in one city, sell in another (incl. Black Market).
 import type { MarketPrice, Recipe } from '../types';
 import type { CraftSettings, PriceMode } from './craft';
-import { unitPrice, livePrice } from './craft';
+import { effectiveResourceCount, unitPrice, livePrice } from './craft';
+import { recipeOptions } from '../items';
 
 export interface FlipResult {
   buyCity: string;
@@ -95,15 +96,25 @@ export function craftMaterialCost(
   recipe: Recipe,
   rows: MarketPrice[], // prices quality-1 de TODOS os ingredientes
   opts: { buyMode: PriceMode; rrr: number },
-): { cost: number; missing: string[]; cities: string } {
-  const cheapest = cheapestCityFor(recipe, rows, opts.buyMode);
-  const missing = cheapest.filter((c) => c.unitPrice <= 0).map((c) => c.id);
-  const total = cheapest.reduce((s, c, i) => s + c.unitPrice * recipe.resources[i].count * (1 - opts.rrr), 0);
-  const cities = [...new Set(cheapest.map((c) => (c.city === '—' ? [] : [c.city])).flat())].join('+');
+): { cost: number; missing: string[]; cities: string; recipe: Recipe } {
+  const options = recipeOptions(recipe).map((candidate) => {
+    const cheapest = cheapestCityFor(candidate, rows, opts.buyMode);
+    const missing = cheapest.filter((c) => c.unitPrice <= 0).map((c) => c.id);
+    const total = cheapest.reduce((s, c, i) => s + c.unitPrice * effectiveResourceCount(candidate.resources[i], opts.rrr), 0) + candidate.silver;
+    const cities = [...new Set(cheapest.map((c) => (c.city === '—' ? [] : [c.city])).flat())].join('+');
+    return { recipe: candidate, cheapest, missing, total, unitCost: total / (candidate.amount || 1), cities };
+  });
+  const selected = options.reduce((best, candidate) =>
+    candidate.missing.length < best.missing.length ||
+    (candidate.missing.length === best.missing.length && candidate.unitCost < best.unitCost)
+      ? candidate
+      : best,
+  );
   return {
-    cost: missing.length === recipe.resources.length ? 0 : total / (recipe.amount || 1),
-    missing,
-    cities: cities || '—',
+    cost: selected.missing.length === selected.recipe.resources.length ? 0 : selected.total / (selected.recipe.amount || 1),
+    missing: selected.missing,
+    cities: selected.cities || '—',
+    recipe: selected.recipe,
   };
 }
 

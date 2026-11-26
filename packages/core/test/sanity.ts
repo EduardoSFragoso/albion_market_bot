@@ -1,11 +1,11 @@
 // Sanity tests of the core package — fictional prices, known results, no network.
 // Failed assert = hard failure. Run: npx tsx packages/core/test/sanity.ts
 import {
-  searchItems, getItem, getRecipe, displayName,
+  searchItems, getItem, getRecipe, displayName, expandRecipeTree,
   calcBestFlip, calcCraft, rankUniverse, scoreCraftItem,
   compareEnchants, craftMaterialCost, enchantFamilyIds,
 } from '../src/index.ts';
-import type { MarketPrice } from '../src/types.ts';
+import type { MarketPrice, Recipe } from '../src/types.ts';
 
 let failed = false;
 function assert(cond: boolean, name: string, extra = ''): void {
@@ -30,6 +30,10 @@ const mk = (item: string, city: string, sell: number, buy: number, stale = false
 // ---- search / items ----
 const r1 = searchItems('bolsa adepto .1', { locale: 'pt', limit: 3 });
 assert(r1[0]?.id === 'T4_BAG@1', 'search PT com hint de encantamento', r1.map((i) => i.id).join(','));
+const r2 = searchItems('adept bag', { locale: 'en', limit: 5 });
+assert(r2.map((i) => i.id).join(',') === 'T4_BAG,T4_BAG@1,T4_BAG@2,T4_BAG@3,T4_BAG@4', 'search EN mantém ordem por relevância', r2.map((i) => i.id).join(','));
+const r3 = searchItems('T4_BAG', { locale: 'en', limit: 5 });
+assert(r3.map((i) => i.id).join(',') === 'T4_BAG,T4_BAG@1,T4_BAG@2,T4_BAG@3,T4_BAG@4', 'search por id mantém variantes encantadas', r3.map((i) => i.id).join(','));
 
 // ---- craft: setup fee now applied (8% + 2.5%) ----
 // recipe T4_BAG@1: 8x T4_CLOTH_LEVEL1@1 + 8x T4_LEATHER_LEVEL1@1 + 192x T4_RUNE, amount 1
@@ -131,6 +135,71 @@ eq(row1.craftCost, matCost, 'craft .1 = craftMaterialCost');
 assert(row1.cheaper === 'buy', 'veredito: comprar pronto é mais barato');
 eq(row1.savings, matCost - 9500, 'savings .1 = custo de craft - oferta');
 const row0 = cmp.find((r) => r.ench === 0)!;
+assert(JSON.stringify(row0.ingredients.map(({ id, count }) => ({ id, count }))) === JSON.stringify(getRecipe('T4_BAG')?.resources), '.0 informa os materiais da receita base');
+assert(JSON.stringify(cmp.find((r) => r.ench === 1)?.ingredients.map(({ id, count }) => ({ id, count }))) === JSON.stringify(getRecipe('T4_BAG@1')?.resources), '.1 informa os materiais da receita encantada');
+const royalTree = expandRecipeTree('T4_ARMOR_LEATHER_ROYAL');
+assert(royalTree[0]?.id === 'T4_ARMOR_LEATHER_SET1' && royalTree[0].components[0]?.id === 'T4_LEATHER', 'árvore de craft expande componentes fabricáveis');
+assert(royalTree[0]?.components[0]?.count === 16 && royalTree[0].components[0].components.some((part) => part.id === 'T4_HIDE' && part.count === 32), 'árvore de craft mostra quantidades totais de matérias-primas');
+const royalSigilNode = royalTree.find((part) => part.id === 'QUESTITEM_TOKEN_ROYAL_T4');
+assert(royalSigilNode?.count === 4 && royalSigilNode.components[0]?.count === 36, 'árvore multiplica materiais pela quantidade total de sigilos');
+assert(displayName('QUESTITEM_TOKEN_ARENA_CRYSTAL', 'pt') === 'Selo da Arena' && displayName('QUESTITEM_TOKEN_ARENA_CRYSTAL', 'en') === 'Arena Sigil', 'nome de selo de arena omite identificador técnico');
+assert(expandRecipeTree('T4_ARMOR_LEATHER_ROYAL', 0)[0]?.components.length === 0, 'árvore de craft respeita limite de profundidade');
+const royalRecipe = getRecipe('T4_ARMOR_LEATHER_ROYAL')!;
+assert(royalRecipe.resources.some((r) => r.id === 'QUESTITEM_TOKEN_ROYAL_T4' && r.count === 4), 'Royal Jacket inclui 4 Royal Sigils');
+assert(royalRecipe.alternatives?.length === 2 && royalRecipe.alternatives.every((path) => path.resources.some((r) => r.id === 'QUESTITEM_TOKEN_ROYAL_T4' && r.count === 4)), 'Royal Jacket mantém as três opções de armadura');
+assert(getRecipe('T4_CAPEITEM_FW_BRIDGEWATCH@1')?.resources.some((r) => r.id === 'T4_CAPE@1'), 'recurso de receita respeita @enchantmentlevel do dump');
+const royalCompare = compareEnchants('T4_ARMOR_LEATHER_ROYAL', [
+  mk('T4_ARMOR_LEATHER_SET1', 'Bridgewatch', 100, 90),
+  mk('T4_ARMOR_LEATHER_SET2', 'Bridgewatch', 80, 70),
+  mk('T4_ARMOR_LEATHER_SET3', 'Bridgewatch', 60, 50),
+  mk('QUESTITEM_TOKEN_ROYAL_T4', 'Bridgewatch', 10, 8),
+], { buyMode: 'instant', rrr: 0 });
+const royalIngredients = royalCompare.find((row) => row.ench === 0)?.ingredients ?? [];
+assert(royalIngredients.some((r) => r.id === 'T4_ARMOR_LEATHER_SET3') && royalIngredients.some((r) => r.id === 'QUESTITEM_TOKEN_ROYAL_T4'), 'encantamento apresenta a rota Royal mais barata completa');
+
+const altRecipe = {
+  resources: [{ id: 'ALT_EXPENSIVE', count: 1 }],
+  alternatives: [{ resources: [{ id: 'ALT_CHEAP', count: 1 }], amount: 2, silver: 1 }],
+  amount: 1, silver: 0,
+} satisfies Recipe;
+const altPrices = [
+  mk('ALT_EXPENSIVE', 'Bridgewatch', 100, 90),
+  mk('ALT_CHEAP', 'Bridgewatch', 5, 4),
+  mk('ALT_OUTPUT', 'Black Market', 0, 1000),
+];
+const altCraft = calcCraft({
+  itemId: 'ALT_OUTPUT', recipe: altRecipe, prices: altPrices,
+  buyCity: 'Bridgewatch', sellCity: 'Black Market',
+  settings: { rrr: 0, buyMode: 'instant', salesTaxPct: 0, setupFeePct: 0 },
+});
+eq(altCraft.materialCost, 5, 'craft soma o custo dos materiais do lote');
+eq(altCraft.totalCost, 6, 'craft inclui prata fixa da alternativa');
+assert(altCraft.amountPerCraft === 2, 'craft preserva a quantidade produzida pela alternativa');
+eq(altCraft.revenue, 2000, 'craft calcula receita pela quantidade produzida pela alternativa');
+eq(altCraft.profit, 1994, 'craft calcula lucro após custo total do lote');
+assert(altCraft.materials[0]?.id === 'ALT_CHEAP', 'craft expõe ingredientes da alternativa escolhida');
+eq(craftMaterialCost(altRecipe, altPrices, { buyMode: 'instant', rrr: 0 }).cost, 3, 'custo de craft inclui prata e divide pela quantidade produzida');
+
+const noReturnRecipe = {
+  resources: [
+    { id: 'NO_RETURN', count: 4, maxReturnAmount: 0 },
+    { id: 'CAPPED_RETURN', count: 4, maxReturnAmount: 1 },
+  ],
+  amount: 1, silver: 0,
+} satisfies Recipe;
+const noReturnPrices = [
+  mk('NO_RETURN', 'Bridgewatch', 10, 8),
+  mk('CAPPED_RETURN', 'Bridgewatch', 10, 8),
+  mk('NO_RETURN_OUTPUT', 'Black Market', 0, 1000),
+];
+const noReturnCraft = calcCraft({
+  itemId: 'NO_RETURN_OUTPUT', recipe: noReturnRecipe, prices: noReturnPrices,
+  buyCity: 'Bridgewatch', sellCity: 'Black Market',
+  settings: { rrr: 0.5, buyMode: 'instant', salesTaxPct: 0, setupFeePct: 0 },
+});
+eq(noReturnCraft.materials[0]?.effectiveCount ?? 0, 4, 'ingrediente sem retorno não recebe RRR');
+eq(noReturnCraft.materials[1]?.effectiveCount ?? 0, 3, 'máximo retornável limita o RRR do ingrediente');
+eq(craftMaterialCost(noReturnRecipe, noReturnPrices, { buyMode: 'instant', rrr: 0.5 }).cost, 70, 'custo aplica limites de retorno por ingrediente');
 const cost0 = (8 * 150 + 8 * 180) * (1 - 0.152); // 8x T4_CLOTH + 8x T4_LEATHER, RRR
 assert(row0.buyPrice === 9500 && row0.cheaper === 'craft', '.0: craft dos crus é mais barato que comprar pronto');
 eq(row0.craftCost, cost0, '.0: craftCost = crus × RRR');

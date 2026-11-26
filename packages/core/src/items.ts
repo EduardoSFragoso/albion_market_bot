@@ -1,6 +1,8 @@
 import itemsJson from './data/items.json';
 import recipesJson from './data/recipes.json';
-import type { ItemIndexEntry, Recipe } from './types';
+import type { ItemIndexEntry, Recipe, RecipeResource } from './types';
+import { displayItemName } from './presentation';
+export { iconUrl } from './presentation';
 
 export const ITEMS = itemsJson as ItemIndexEntry[];
 export const RECIPES = recipesJson as Record<string, Recipe>;
@@ -11,21 +13,64 @@ export const getItem = (id: string): ItemIndexEntry | undefined => byId.get(id);
 export const getRecipe = (id: string): Recipe | undefined => RECIPES[id];
 export const hasRecipe = (id: string): boolean => !!RECIPES[id];
 
+/** Return each valid material path as an independent recipe. */
+export function recipeOptions(recipe: Recipe): Recipe[] {
+  return [
+    { resources: recipe.resources, amount: recipe.amount, silver: recipe.silver },
+    ...(recipe.alternatives ?? []),
+  ];
+}
+
+export interface RecipeTreeIngredient extends RecipeResource {
+  en: string;
+  pt: string;
+  ench: number;
+  components: RecipeTreeIngredient[];
+}
+
+/** Expands craftable ingredients into a bounded recipe tree for display. */
+export function expandRecipeTree(itemId: string, maxDepth = 4, rootRecipe?: Recipe): RecipeTreeIngredient[] {
+  let remainingNodes = 200;
+  const depthLimit = Math.max(0, Math.min(5, Math.floor(maxDepth)));
+
+  const expand = (id: string, count: number, depth: number, ancestors: Set<string>): RecipeTreeIngredient | null => {
+    if (remainingNodes <= 0) return null;
+    remainingNodes -= 1;
+    const item = getItem(id);
+    const recipe = getRecipe(id);
+    const craftsNeeded = recipe ? Math.ceil(count / Math.max(1, recipe.amount)) : 0;
+    const nextAncestors = new Set(ancestors).add(id);
+    const components = depth < depthLimit
+      ? (recipe?.resources ?? [])
+        .filter((resource) => !nextAncestors.has(resource.id))
+        .map((resource) => expand(resource.id, resource.count * craftsNeeded, depth + 1, nextAncestors))
+        .filter((resource): resource is RecipeTreeIngredient => resource !== null)
+      : [];
+
+    return {
+      id, count,
+      en: item?.en ?? id,
+      pt: item?.pt || item?.en || id,
+      ench: item?.ench ?? 0,
+      components,
+    };
+  };
+
+  return ((rootRecipe ?? getRecipe(itemId))?.resources ?? [])
+    .map((resource) => expand(resource.id, resource.count, 0, new Set([itemId])))
+    .filter((resource): resource is RecipeTreeIngredient => resource !== null);
+}
+
 /** Localized display name with enchantment suffix (e.g. "Bolsa do Adepto .2"). */
 export function displayName(id: string, locale: 'pt' | 'en' = 'en'): string {
   const item = getItem(id);
   if (!item) return id;
-  const base = locale === 'pt' ? item.pt || item.en : item.en || item.pt;
-  return item.ench > 0 ? `${base} .${item.ench}` : base;
+  return displayItemName(item, locale);
 }
 
 /** Icon from Albion's official render service. size: 1|3|8 (multiples of 64px). */
 // O CDN de render (render.albiononline.com) só aceita hoje 16/64/128 — os tamanhos
 // 1/3/8 da era antiga respondem HTTP 500 (verificado 2026-11).
-export function iconUrl(id: string, size: 16 | 64 | 128 = 64): string {
-  return `https://render.albiononline.com/v1/item/${encodeURIComponent(id)}.png?size=${size}&quality=1`;
-}
-
 // ---- search ----
 
 const searchIndex = ITEMS.map((item) => ({

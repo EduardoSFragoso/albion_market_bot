@@ -5,7 +5,7 @@
 // Proxies the Albion Online Data Project API with caching and JSON contracts.
 // Env var AODP_SERVER selects west (default) | east | europe.
 import {
-  fetchPrices, fetchHistory, searchItems, getItem, getRecipe,
+  fetchPrices, fetchHistory, searchItems, getItem, getRecipe, expandRecipeTree, recipeOptions,
   calcCraft, calcBestFlip, cheapestCityFor, rankOpportunities, compareEnchants, enchantFamilyIds, MAIN_CITIES,
 } from '@albion/core';
 import {
@@ -93,10 +93,15 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
       const family = enchantFamilyIds(baseId);
       const ids = new Set<string>(family);
       for (const fid of family) {
-        for (const r of getRecipe(fid)?.resources ?? []) ids.add(r.id);
+        const recipe = getRecipe(fid);
+        if (!recipe) continue;
+        for (const option of recipeOptions(recipe)) {
+          for (const r of option.resources) ids.add(r.id);
+        }
       }
       const prices = await fetchPrices(server, [...ids], { locations: [...MAIN_CITIES], qualities: [1] });
       const rows = compareEnchants(baseId, prices, { buyMode, rrr });
+      // Rows include the base and enchanted recipe materials for the web panel.
       return json({ server, baseId, rows });
     }
 
@@ -138,12 +143,17 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
       const setupFeePct = clamp(num(url.searchParams.get('setupFee'), 2.5), 0, 10);
       const rrr = clamp(num(url.searchParams.get('rrr'), 0.152), 0, 0.6);
 
-      const ids = [...new Set([...recipe.resources.map((r) => r.id), itemId])];
+      const ids = [...new Set([...recipeOptions(recipe).flatMap((option) => option.resources.map((r) => r.id)), itemId])];
       const prices = await fetchPrices(server, ids, { locations: [...MAIN_CITIES], qualities: [1] });
       const result = calcCraft({ itemId, recipe, prices, buyCity, sellCity, settings: { rrr, buyMode, salesTaxPct, setupFeePct } });
-      if (!result.ok) return json({ server, item, recipe, result });
-      const cheapest = cheapestCityFor(recipe, prices, buyMode);
-      return json({ server, item, recipe, buyCity, sellCity, result, cheapest });
+      const selectedRecipe = result.selectedRecipe ?? recipe;
+      const displayRecipe = {
+        ...selectedRecipe,
+        resources: expandRecipeTree(itemId, 4, selectedRecipe),
+      };
+      if (!result.ok) return json({ server, item, recipe: displayRecipe, result });
+      const cheapest = cheapestCityFor(selectedRecipe, prices, buyMode);
+      return json({ server, item, recipe: displayRecipe, buyCity, sellCity, result, cheapest });
     }
 
     if (path === '/flip') {
