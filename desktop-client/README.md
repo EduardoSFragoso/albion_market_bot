@@ -15,7 +15,9 @@ Albion Online Data Project (AODP), ferramenta comunitária.
 - Mostra até 200 ordens mais recentes por consulta, com nomes de itens no idioma
   selecionado quando o banco gerado do core está disponível, código original,
   tipo da ordem, qualidade, encantamento, cidade/local, servidor, preço em
-  prata e filtros por código, local e região.
+  prata e filtros por item, cidade/local, servidor e intervalo de datas.
+- Exporta todas as ordens que correspondem aos filtros para CSV, mesmo quando a
+  tabela mostra apenas as 200 mais recentes.
 - Os índices PT-BR e EN são arquivos JSON estáticos separados; o painel carrega
   apenas o idioma ativo, fora do bundle JavaScript principal.
 - Mostra duração da sessão, mensagens do jogo decodificadas e um feed limitado

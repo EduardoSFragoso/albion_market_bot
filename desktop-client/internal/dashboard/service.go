@@ -3,6 +3,7 @@ package dashboard
 
 import (
 	"errors"
+	"time"
 
 	"github.com/ao-data/albiondata-client/internal/marketarchive"
 	"github.com/ao-data/albiondata-client/internal/preferences"
@@ -69,4 +70,56 @@ func (s *DashboardService) GetMarketArchive(search, locationID, region string, l
 		return marketarchive.Result{Path: s.Archive.Path(), Error: err.Error()}
 	}
 	return result
+}
+
+// GetMarketArchiveFiltered returns a bounded view using item, location, region,
+// and local calendar-date filters. The end date is inclusive in the UI.
+func (s *DashboardService) GetMarketArchiveFiltered(itemID, locationID, region, fromDate, toDate string, limit int) marketarchive.Result {
+	if s.Archive == nil {
+		return marketarchive.Result{Error: "Local market archive is unavailable."}
+	}
+	filter, err := archiveFilter(itemID, locationID, region, fromDate, toDate)
+	if err != nil {
+		return marketarchive.Result{Path: s.Archive.Path(), Error: err.Error()}
+	}
+	result, err := s.Archive.QueryFiltered(filter, limit)
+	if err != nil {
+		return marketarchive.Result{Path: s.Archive.Path(), Error: err.Error()}
+	}
+	return result
+}
+
+// ExportMarketArchiveCSV writes all records matching the supplied filters.
+func (s *DashboardService) ExportMarketArchiveCSV(destination, itemID, locationID, region, fromDate, toDate string) (marketarchive.ExportResult, error) {
+	if s.Archive == nil {
+		return marketarchive.ExportResult{}, errors.New("Local market archive is unavailable.")
+	}
+	filter, err := archiveFilter(itemID, locationID, region, fromDate, toDate)
+	if err != nil {
+		return marketarchive.ExportResult{}, err
+	}
+	return s.Archive.ExportCSV(destination, filter)
+}
+
+func archiveFilter(itemID, locationID, region, fromDate, toDate string) (marketarchive.QueryFilter, error) {
+	filter := marketarchive.QueryFilter{ItemID: itemID, Location: locationID, Region: region}
+	if fromDate != "" {
+		value, err := time.ParseInLocation("2006-01-02", fromDate, time.Local)
+		if err != nil {
+			return filter, errors.New("invalid start date")
+		}
+		filter.From = &value
+	}
+	if toDate != "" {
+		value, err := time.ParseInLocation("2006-01-02", toDate, time.Local)
+		if err != nil {
+			return filter, errors.New("invalid end date")
+		}
+		value = value.AddDate(0, 0, 1)
+		filter.Before = &value
+	}
+	if filter.From != nil && filter.Before != nil && !filter.From.Before(*filter.Before) {
+		return filter, errors.New("start date must be on or before end date")
+	}
+	return filter, nil
 }

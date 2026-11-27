@@ -115,6 +115,44 @@ export class Entry {
 }
 
 /**
+ * ExportResult reports the CSV path and the number of exported records.
+ */
+export class ExportResult {
+    /**
+     * Creates a new ExportResult instance.
+     * @param {Partial<ExportResult>} [$$source = {}] - The source object to create the ExportResult.
+     */
+    constructor($$source = {}) {
+        if (!("Path" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["Path"] = "";
+        }
+        if (!("Exported" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["Exported"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ExportResult instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {ExportResult}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ExportResult(/** @type {Partial<ExportResult>} */($$parsedSource));
+    }
+}
+
+/**
  * Result contains the newest matching records and the total number of matches.
  */
 export class Result {

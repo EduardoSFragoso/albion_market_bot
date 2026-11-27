@@ -5,10 +5,12 @@ package marketarchive
 import (
 	"bufio"
 	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -57,6 +59,23 @@ type Result struct {
 	InvalidLines int64
 	Path         string
 	Error        string
+}
+
+// QueryFilter selects archive records. From is inclusive and Before is exclusive.
+type QueryFilter struct {
+	ItemID        string
+	Location      string
+	Region        string
+	From          *time.Time
+	Before        *time.Time
+	searchAll     bool
+	exactLocation bool
+}
+
+// ExportResult reports the CSV path and the number of exported records.
+type ExportResult struct {
+	Path     string
+	Exported int64
 }
 
 // Store serializes reads and writes to one local JSONL archive.
@@ -219,12 +238,16 @@ func (s *Store) PruneOlderThan(retention time.Duration) (int64, error) {
 // Query scans the archive without retaining the whole dump in memory. It
 // returns at most the newest maxPageSize matching rows in reverse chronology.
 func (s *Store) Query(search, locationID, region string, limit int) (Result, error) {
+	return s.QueryFiltered(QueryFilter{ItemID: search, Location: locationID, Region: region, searchAll: true, exactLocation: true}, limit)
+}
+
+// QueryFiltered scans the archive without retaining the whole dump in memory.
+// It returns at most the newest maxPageSize matching rows in reverse chronology.
+func (s *Store) QueryFiltered(filter QueryFilter, limit int) (Result, error) {
 	if limit < 1 || limit > maxPageSize {
 		limit = maxPageSize
 	}
-	search = strings.ToLower(strings.TrimSpace(search))
-	locationID = strings.ToLower(strings.TrimSpace(locationID))
-	region = strings.ToLower(strings.TrimSpace(region))
+	filter = normalizeFilter(filter)
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -248,7 +271,7 @@ func (s *Store) Query(search, locationID, region string, limit int) (Result, err
 			result.InvalidLines++
 			continue
 		}
-		if !matches(entry, search, locationID, region) {
+		if !matchesFilter(entry, filter) {
 			continue
 		}
 		window[result.Total%int64(limit)] = entry
@@ -269,20 +292,142 @@ func (s *Store) Query(search, locationID, region string, limit int) (Result, err
 	return result, nil
 }
 
-func matches(entry Entry, search, locationID, region string) bool {
-	if locationID != "" && !strings.EqualFold(entry.LocationID, locationID) {
+// ExportCSV writes every matching record, streaming from the archive so large
+// dumps do not need to fit in memory. A UTF-8 BOM helps spreadsheet programs.
+func (s *Store) ExportCSV(destination string, filter QueryFilter) (ExportResult, error) {
+	result := ExportResult{Path: destination}
+	if strings.TrimSpace(destination) == "" || !strings.EqualFold(filepath.Ext(destination), ".csv") {
+		return result, errors.New("export destination must be a .csv file")
+	}
+	sourcePath, err := filepath.Abs(s.path)
+	if err != nil {
+		return result, err
+	}
+	destinationPath, err := filepath.Abs(destination)
+	if err != nil {
+		return result, err
+	}
+	if strings.EqualFold(filepath.Clean(sourcePath), filepath.Clean(destinationPath)) {
+		return result, errors.New("cannot export over the local market archive")
+	}
+	if sourceInfo, sourceErr := os.Stat(sourcePath); sourceErr == nil {
+		if destinationInfo, destinationErr := os.Stat(destinationPath); destinationErr == nil && os.SameFile(sourceInfo, destinationInfo) {
+			return result, errors.New("cannot export over the local market archive")
+		}
+	}
+
+	filter = normalizeFilter(filter)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	source, err := os.Open(s.path)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return result, err
+	}
+	if source != nil {
+		defer source.Close()
+	}
+	if err := os.MkdirAll(filepath.Dir(destinationPath), 0o700); err != nil {
+		return result, err
+	}
+	temp, err := os.CreateTemp(filepath.Dir(destinationPath), ".market-orders-export-*.csv")
+	if err != nil {
+		return result, err
+	}
+	tempPath := temp.Name()
+	defer os.Remove(tempPath)
+	if _, err := temp.Write([]byte{0xef, 0xbb, 0xbf}); err != nil {
+		temp.Close()
+		return result, err
+	}
+	writer := csv.NewWriter(temp)
+	if err := writer.Write([]string{"captured_at_utc", "region", "city", "item_id", "item_group_id", "auction_type", "quantity", "unit_price_silver", "quality", "enchantment", "expires"}); err != nil {
+		temp.Close()
+		return result, err
+	}
+	if source != nil {
+		scanner := bufio.NewScanner(source)
+		scanner.Buffer(make([]byte, 64*1024), maxRecordSize)
+		for scanner.Scan() {
+			var entry Entry
+			if json.Unmarshal(scanner.Bytes(), &entry) != nil || !matchesFilter(entry, filter) {
+				continue
+			}
+			row := []string{
+				entry.CapturedAt.UTC().Format(time.RFC3339Nano),
+				csvSafe(entry.Region), csvSafe(entry.LocationID), csvSafe(entry.ItemID), csvSafe(entry.GroupTypeID),
+				csvSafe(entry.AuctionType), strconv.Itoa(entry.Amount), strconv.Itoa(entry.Price),
+				strconv.Itoa(entry.QualityLevel), strconv.Itoa(entry.EnchantmentLevel), csvSafe(entry.Expires),
+			}
+			if err := writer.Write(row); err != nil {
+				temp.Close()
+				return result, err
+			}
+			result.Exported++
+		}
+		if err := scanner.Err(); err != nil {
+			temp.Close()
+			return result, err
+		}
+	}
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		temp.Close()
+		return result, err
+	}
+	if err := temp.Sync(); err != nil {
+		temp.Close()
+		return result, err
+	}
+	if err := temp.Close(); err != nil {
+		return result, err
+	}
+	if err := os.Rename(tempPath, destinationPath); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+
+func normalizeFilter(filter QueryFilter) QueryFilter {
+	filter.ItemID = strings.ToLower(strings.TrimSpace(filter.ItemID))
+	filter.Location = strings.ToLower(strings.TrimSpace(filter.Location))
+	filter.Region = strings.ToLower(strings.TrimSpace(filter.Region))
+	return filter
+}
+
+func matchesFilter(entry Entry, filter QueryFilter) bool {
+	if filter.Location != "" {
+		if filter.exactLocation && !strings.EqualFold(entry.LocationID, filter.Location) {
+			return false
+		}
+		if !filter.exactLocation && !strings.Contains(strings.ToLower(entry.LocationID), filter.Location) {
+			return false
+		}
+	}
+	if filter.Region != "" && !strings.EqualFold(entry.Region, filter.Region) {
 		return false
 	}
-	if region != "" && !strings.EqualFold(entry.Region, region) {
+	if filter.From != nil && entry.CapturedAt.Before(*filter.From) {
 		return false
 	}
-	if search == "" {
+	if filter.Before != nil && !entry.CapturedAt.Before(*filter.Before) {
+		return false
+	}
+	if filter.ItemID == "" {
 		return true
 	}
-	return strings.Contains(strings.ToLower(entry.ItemID), search) ||
-		strings.Contains(strings.ToLower(entry.GroupTypeID), search) ||
-		strings.Contains(strings.ToLower(entry.LocationID), search) ||
-		strings.Contains(strings.ToLower(entry.AuctionType), search)
+	if strings.Contains(strings.ToLower(entry.ItemID), filter.ItemID) || strings.Contains(strings.ToLower(entry.GroupTypeID), filter.ItemID) {
+		return true
+	}
+	return filter.searchAll && (strings.Contains(strings.ToLower(entry.LocationID), filter.ItemID) || strings.Contains(strings.ToLower(entry.AuctionType), filter.ItemID))
+}
+
+func csvSafe(value string) string {
+	trimmed := strings.TrimLeft(value, " \t\r\n")
+	if trimmed != "" && strings.ContainsRune("=+-@", rune(trimmed[0])) {
+		return "'" + value
+	}
+	return value
 }
 
 func writeAll(file *os.File, data []byte) error {

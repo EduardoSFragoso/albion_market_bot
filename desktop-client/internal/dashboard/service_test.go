@@ -62,3 +62,22 @@ func TestDashboardService_ExposesSessionStatsAndActivity(t *testing.T) {
 		t.Fatalf("GetRecentActivity() = %+v, want newest data event first", feed)
 	}
 }
+
+func TestArchiveFilterUsesInclusiveLocalCalendarDates(t *testing.T) {
+	filter, err := archiveFilter("T4_BAG", "Thetford", "West", "2026-11-26", "2026-11-26")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filter.From == nil || filter.Before == nil {
+		t.Fatalf("archiveFilter() date bounds = %+v, want both bounds", filter)
+	}
+	if got := filter.From.Format("2006-01-02 15:04:05"); got != "2026-11-26 00:00:00" {
+		t.Fatalf("start bound = %q, want local midnight", got)
+	}
+	if got := filter.Before.Format("2006-01-02 15:04:05"); got != "2026-11-27 00:00:00" {
+		t.Fatalf("exclusive end bound = %q, want next local midnight", got)
+	}
+	if _, err := archiveFilter("", "", "", "2026-11-27", "2026-11-26"); err == nil {
+		t.Fatal("archiveFilter() accepted a start date after the end date")
+	}
+}

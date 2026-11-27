@@ -26,6 +26,22 @@ import * as preferences$0 from "../preferences/models.js";
 import * as $models from "./models.js";
 
 /**
+ * ExportMarketArchiveCSV writes all records matching the supplied filters.
+ * @param {string} destination
+ * @param {string} itemID
+ * @param {string} locationID
+ * @param {string} region
+ * @param {string} fromDate
+ * @param {string} toDate
+ * @returns {$CancellablePromise<marketarchive$0.ExportResult>}
+ */
+export function ExportMarketArchiveCSV(destination, itemID, locationID, region, fromDate, toDate) {
+    return $Call.ByID(125597401, destination, itemID, locationID, region, fromDate, toDate).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
  * GetMarketArchive returns a bounded view of locally captured market orders.
  * @param {string} search
  * @param {string} locationID
@@ -35,7 +51,24 @@ import * as $models from "./models.js";
  */
 export function GetMarketArchive(search, locationID, region, limit) {
     return $Call.ByID(2631657763, search, locationID, region, limit).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType0($result);
+        return $$createType1($result);
+    }));
+}
+
+/**
+ * GetMarketArchiveFiltered returns a bounded view using item, location, region,
+ * and local calendar-date filters. The end date is inclusive in the UI.
+ * @param {string} itemID
+ * @param {string} locationID
+ * @param {string} region
+ * @param {string} fromDate
+ * @param {string} toDate
+ * @param {number} limit
+ * @returns {$CancellablePromise<marketarchive$0.Result>}
+ */
+export function GetMarketArchiveFiltered(itemID, locationID, region, fromDate, toDate, limit) {
+    return $Call.ByID(687124116, itemID, locationID, region, fromDate, toDate, limit).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
     }));
 }
 
@@ -45,7 +78,7 @@ export function GetMarketArchive(search, locationID, region, limit) {
  */
 export function GetRecentActivity() {
     return $Call.ByID(940792225).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType2($result);
+        return $$createType3($result);
     }));
 }
 
@@ -55,7 +88,7 @@ export function GetRecentActivity() {
  */
 export function GetRecentLogs() {
     return $Call.ByID(660391799).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType4($result);
+        return $$createType5($result);
     }));
 }
 
@@ -65,7 +98,7 @@ export function GetRecentLogs() {
  */
 export function GetSessionStats() {
     return $Call.ByID(4161061016).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType5($result);
+        return $$createType6($result);
     }));
 }
 
@@ -75,7 +108,7 @@ export function GetSessionStats() {
  */
 export function GetStatus() {
     return $Call.ByID(1612471225).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType6($result);
+        return $$createType7($result);
     }));
 }
 
@@ -85,7 +118,7 @@ export function GetStatus() {
  */
 export function GetUploadCounts() {
     return $Call.ByID(1683242014).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType7($result);
+        return $$createType8($result);
     }));
 }
 
@@ -95,7 +128,7 @@ export function GetUploadCounts() {
  */
 export function GetUploadPreferences() {
     return $Call.ByID(1605117728).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType8($result);
+        return $$createType9($result);
     }));
 }
 
@@ -109,12 +142,13 @@ export function SetUploadPreferences(value) {
 }
 
 // Private type creation functions
-const $$createType0 = marketarchive$0.Result.createFrom;
-const $$createType1 = $models.ActivityEvent.createFrom;
-const $$createType2 = $Create.Array($$createType1);
-const $$createType3 = $models.LogLine.createFrom;
-const $$createType4 = $Create.Array($$createType3);
-const $$createType5 = $models.SessionStats.createFrom;
-const $$createType6 = $models.Status.createFrom;
-const $$createType7 = $Create.Map($Create.Any, $Create.Any);
-const $$createType8 = preferences$0.UploadCategories.createFrom;
+const $$createType0 = marketarchive$0.ExportResult.createFrom;
+const $$createType1 = marketarchive$0.Result.createFrom;
+const $$createType2 = $models.ActivityEvent.createFrom;
+const $$createType3 = $Create.Array($$createType2);
+const $$createType4 = $models.LogLine.createFrom;
+const $$createType5 = $Create.Array($$createType4);
+const $$createType6 = $models.SessionStats.createFrom;
+const $$createType7 = $models.Status.createFrom;
+const $$createType8 = $Create.Map($Create.Any, $Create.Any);
+const $$createType9 = preferences$0.UploadCategories.createFrom;
