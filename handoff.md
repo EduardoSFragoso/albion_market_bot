@@ -104,6 +104,7 @@ vêm de `/api/search`.
 | `npm run test:api-rate-limit` | gate Pages + rate limit Worker (inclui IP, 429 e peso do `/rank`) |
 | `npm run build:api-limiter` | empacota o Worker em dry-run, sem publicar |
 | `go test ./...` em `desktop-client` | testes do app Go (captura, arquivo, preferências e interface de rede) |
+| `go vet ./...` em `desktop-client` | análise estática do app Go; executada na CI Windows |
 | `npm test` em `desktop-client/frontend` | testes de formatação e rótulos do arquivo local |
 | `npm run build` em `desktop-client/frontend` | gera interface e índices de nomes localizados |
 | `.\scripts\build-windows.ps1 -OutputPath .\bin\albion-market-archive.exe -Version dev` em `desktop-client` | embute e verifica o ícone Windows, compila o app; não o inicia |

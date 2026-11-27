@@ -86,12 +86,14 @@ func physicalAddrToString(physAddr [8]byte, addrLen uint32) string {
 func cStringToString(cs *uint16) (s string) {
 	if cs != nil {
 		us := make([]uint16, 0, 256)
-		for p := uintptr(unsafe.Pointer(cs)); ; p += 2 {
-			u := *(*uint16)(unsafe.Pointer(p))
+		p := unsafe.Pointer(cs)
+		for {
+			u := *(*uint16)(p)
 			if u == 0 {
 				return string(utf16.Decode(us))
 			}
 			us = append(us, u)
+			p = unsafe.Add(p, unsafe.Sizeof(uint16(0)))
 		}
 	}
 	return ""
