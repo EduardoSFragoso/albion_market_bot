@@ -59,6 +59,9 @@ jobs:
           go-version-file: desktop-client/go.mod
           cache-dependency-path: desktop-client/go.sum
 
+      - name: Instalar cabeçalhos libpcap para testes do cliente
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libpcap-dev
+
       - name: Testes Go do app desktop
         working-directory: desktop-client
         run: go test ./client/... ./internal/... ./icon ./lib ./log ./notification
