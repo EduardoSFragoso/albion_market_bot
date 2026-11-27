@@ -14,10 +14,10 @@ mesma alteração** que mudar algo estrutural (regra do [AGENTS.md](AGENTS.md)).
   zero alertas Code Scanning abertos após a análise de `main`.
 - PR #28 atualizou `golang.org/x/crypto` para `v0.52.0`; a API do GitHub confirmou zero
   alertas Dependabot abertos em 2026-11-26.
-- A CI `check` também executa os testes Go dos pacotes `client`/`internal` e os testes/build
-  do frontend desktop. O runner Linux precisa de `libpcap-dev` para compilar o adaptador
-  de captura. O pacote raiz Wails segue fora do comando Linux; `go test ./...` continua no
-  checklist local Windows.
+- A CI usa um check agregado obrigatório `check`: exige a suíte core/web em Ubuntu e o job
+  `desktop-client-windows`, que executa `npm ci`, testes/build do frontend, `go test ./...`
+  e compila o executável Wails sem iniciá-lo. O frontend é compilado antes dos testes Go
+  porque o pacote raiz incorpora `frontend/dist`.
 
 ## Ponto salvo — 2026-11-26 (após merge e deploy)
 
