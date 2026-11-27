@@ -53,3 +53,24 @@ jobs:
 
       - name: Bot — script de registro compila
         run: node --check apps/bot/scripts/register-commands.mjs
+
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: desktop-client/go.mod
+          cache-dependency-path: desktop-client/go.sum
+
+      - name: Testes Go do app desktop
+        working-directory: desktop-client
+        run: go test ./client/... ./internal/... ./icon ./lib ./log ./notification
+
+      - name: Instalar dependências do frontend desktop
+        working-directory: desktop-client/frontend
+        run: npm ci
+
+      - name: Testes do frontend desktop
+        working-directory: desktop-client/frontend
+        run: npm test
+
+      - name: Build do frontend desktop
+        working-directory: desktop-client/frontend
+        run: npm run build
