@@ -1,9 +1,9 @@
 # Build e validação
 
-Este repositório contém o app pessoal para Windows. A publicação de releases é
-manual por tag: o GitHub Actions compila o `.exe` no Windows e anexa o arquivo e
-seu checksum SHA-256 à release. O app não publica nem instala atualizações por
-conta própria.
+Este repositório contém o app pessoal portátil para Windows. A publicação de
+releases é manual por tag: o GitHub Actions compila o `.exe` com o ícone do app,
+coloca-o numa pasta dentro de um ZIP e anexa o ZIP e seu checksum SHA-256 à
+release. O app não publica nem instala atualizações por conta própria.
 
 ## Gerar o executável no Windows
 
@@ -23,11 +23,13 @@ npm ci
 npm run build
 Set-Location ..
 & "$env:USERPROFILE\go\bin\wails3.exe" generate bindings ./...
-go build -o bin/albion-market-archive.exe .
+.\scripts\build-windows.ps1 -OutputPath .\bin\albion-market-archive.exe -Version dev
 ```
 
 Compile a interface antes de `go test` ou `go build`: o ponto de entrada Go
 incorpora `frontend/dist` e falha se a pasta ainda não existir.
+O script chama `go-winres` v0.3.3 com `go run` para embutir e validar o ícone;
+a ferramenta fica no cache de módulos do Go, sem instalação no `PATH`.
 
 O `prebuild` gera os índices estáticos de nomes PT-BR e inglês. Sem o banco de
 itens do core, o build continua possível e a interface usa IDs legíveis. O
@@ -41,14 +43,19 @@ release. Ele verifica que o commit da tag já está em `main`, compila o fronten
 gera o executável com o número da versão e cria a release com estes dois
 arquivos:
 
-- `albion-market-archive.exe`
+- `albion-market-archive-windows-x64.zip` — contém a pasta `AlbionMarketArchive`,
+  o `.exe` e um README curto para uso portátil
 - `SHA256SUMS.txt`
 
-O checksum é calculado a partir do `.exe` produzido naquela execução. O workflow
-não executa o app, não publica em Cloudflare e não habilita atualização
-automática. Se a compilação falhar antes da publicação, corrija a causa e
-reexecute a mesma tag. Uma release já criada não é sobrescrita; publique uma
-nova versão se precisar substituir os arquivos.
+O checksum é calculado a partir do ZIP. O workflow também confere que o ZIP
+contém a pasta, o executável e o README, e extrai o recurso para verificar que o
+ícone foi embutido. Não executa o app, não publica em Cloudflare e não habilita
+atualização automática. Se a compilação falhar antes da publicação, corrija a
+causa e reexecute a mesma tag. Uma release já criada não é sobrescrita; publique
+uma nova versão se precisar substituir os arquivos.
+
+O app grava `albiondata-client.log` ao lado do executável e mantém até 10 cópias
+antigas. O arquivo é texto simples e pode ser aberto por um editor de texto.
 
 ## Testes
 

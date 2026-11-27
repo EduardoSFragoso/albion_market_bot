@@ -21,8 +21,8 @@ O app pessoal e seu fluxo de desenvolvimento estão descritos em
 [`desktop-client/README.md`](desktop-client/README.md). Ele guarda localmente
 as ordens de mercado observadas durante o jogo e continua enviando os mesmos
 lotes ao AODP; a interface pode ser alternada entre português e inglês.
-Versões do executável são publicadas manualmente em Releases do GitHub com um
-checksum SHA-256; o app não se atualiza sozinho.
+Versões do app são publicadas manualmente em Releases do GitHub como ZIP portátil
+com checksum SHA-256; o app não se atualiza sozinho.
 
 ## Como funciona
 

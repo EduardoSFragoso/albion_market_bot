@@ -259,13 +259,15 @@ func (config *config) setupLogs() {
 
 	log.SetLevel(level)
 
+	logPath := GetLogFilePath()
+
 	// Rotate existing log files before creating new one
-	rotateLogFiles()
+	rotateLogFiles(logPath)
 
 	// Always log to both file and terminal
 	// Use colors for terminal, strip ANSI codes for file
 	log.SetFormatter(&logrus.TextFormatter{FullTimestamp: true, DisableSorting: true, ForceColors: true})
-	f, err := os.OpenFile(logFileName, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644)
+	f, err := os.OpenFile(logPath, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644)
 	if err == nil {
 		// Wrap file writer to strip ANSI codes
 		strippedFileWriter := newAnsiStripWriter(f)
@@ -278,34 +280,42 @@ func (config *config) setupLogs() {
 }
 
 // rotateLogFiles moves the current log file to a numbered backup and removes old backups
-func rotateLogFiles() {
+func rotateLogFiles(logPath string) {
 	// Check if current log file exists
-	if _, err := os.Stat(logFileName); os.IsNotExist(err) {
+	if _, err := os.Stat(logPath); os.IsNotExist(err) {
 		return // No log file to rotate
 	}
 
 	// Remove the oldest log file if we're at the limit
-	oldestLog := fmt.Sprintf("%s.%d", logFileName, maxLogFiles)
+	oldestLog := fmt.Sprintf("%s.%d", logPath, maxLogFiles)
 	_ = os.Remove(oldestLog)
 
 	// Shift all existing log files up by one number
 	for i := maxLogFiles - 1; i >= 1; i-- {
-		oldName := fmt.Sprintf("%s.%d", logFileName, i)
-		newName := fmt.Sprintf("%s.%d", logFileName, i+1)
+		oldName := fmt.Sprintf("%s.%d", logPath, i)
+		newName := fmt.Sprintf("%s.%d", logPath, i+1)
 		_ = os.Rename(oldName, newName)
 	}
 
 	// Rename current log file to .1
-	_ = os.Rename(logFileName, fmt.Sprintf("%s.1", logFileName))
+	_ = os.Rename(logPath, fmt.Sprintf("%s.1", logPath))
 }
 
-// GetLogFilePath returns the full path to the current log file
+func logFilePath(executablePath string) string {
+	return filepath.Join(filepath.Dir(executablePath), logFileName)
+}
+
+// GetLogFilePath returns the log path next to the executable.
 func GetLogFilePath() string {
-	absPath, err := filepath.Abs(logFileName)
+	executablePath, err := os.Executable()
 	if err != nil {
-		return logFileName
+		absPath, absErr := filepath.Abs(logFileName)
+		if absErr != nil {
+			return logFileName
+		}
+		return absPath
 	}
-	return absPath
+	return logFilePath(executablePath)
 }
 
 func (config *config) setupDebugEvents() {

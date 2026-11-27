@@ -50,20 +50,38 @@ jobs:
         working-directory: desktop-client/frontend
         run: npm run build
 
-      - name: Build executable
+      - name: Build portable app folder
         working-directory: desktop-client
         shell: pwsh
         run: |
           $version = $env:GITHUB_REF_NAME -replace '^desktop-v', ''
-          $ldflags = "-s -w -X main.version=$version"
-          go build -ldflags="$ldflags" -o "$env:RUNNER_TEMP\albion-market-archive.exe" .
+          $packageDir = Join-Path $env:RUNNER_TEMP 'AlbionMarketArchive'
+          New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
+          $exePath = Join-Path $packageDir 'albion-market-archive.exe'
+          .\scripts\build-windows.ps1 -OutputPath $exePath -Version $version
+          Copy-Item README-portable.md (Join-Path $packageDir 'README.md')
 
-      - name: Create SHA-256 checksum
+      - name: Create ZIP and SHA-256 checksum
         shell: pwsh
         run: |
-          $exe = Join-Path $env:RUNNER_TEMP 'albion-market-archive.exe'
-          $checksum = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$checksum  albion-market-archive.exe" | Set-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'SHA256SUMS.txt') -Encoding ascii
+          $packageDir = Join-Path $env:RUNNER_TEMP 'AlbionMarketArchive'
+          $zipPath = Join-Path $env:RUNNER_TEMP 'albion-market-archive-windows-x64.zip'
+          Compress-Archive -LiteralPath $packageDir -DestinationPath $zipPath -CompressionLevel Optimal
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+          try {
+            $entries = @($archive.Entries | ForEach-Object FullName)
+          }
+          finally {
+            $archive.Dispose()
+          }
+          if ('AlbionMarketArchive/albion-market-archive.exe' -notin $entries -or 'AlbionMarketArchive/README.md' -notin $entries) {
+            throw 'The portable ZIP is missing its folder, executable, or README.'
+          }
+
+          $checksum = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$checksum  albion-market-archive-windows-x64.zip" | Set-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'SHA256SUMS.txt') -Encoding ascii
 
       - name: Publish GitHub Release
         env:
@@ -72,7 +90,7 @@ jobs:
         run: |
           $version = $env:GITHUB_REF_NAME -replace '^desktop-v', ''
           gh release create "$env:GITHUB_REF_NAME" `
-            (Join-Path $env:RUNNER_TEMP 'albion-market-archive.exe') `
+            (Join-Path $env:RUNNER_TEMP 'albion-market-archive-windows-x64.zip') `
             (Join-Path $env:RUNNER_TEMP 'SHA256SUMS.txt') `
             --title "Albion Market Archive v$version" `
             --generate-notes
