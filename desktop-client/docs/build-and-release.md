@@ -1,7 +1,9 @@
 # Build e validação
 
-Este repositório contém o app pessoal para Windows. Ainda não há publicação
-automática de releases para o app no CI da raiz.
+Este repositório contém o app pessoal para Windows. A publicação de releases é
+manual por tag: o GitHub Actions compila o `.exe` no Windows e anexa o arquivo e
+seu checksum SHA-256 à release. O app não publica nem instala atualizações por
+conta própria.
 
 ## Gerar o executável no Windows
 
@@ -30,6 +32,23 @@ incorpora `frontend/dist` e falha se a pasta ainda não existir.
 O `prebuild` gera os índices estáticos de nomes PT-BR e inglês. Sem o banco de
 itens do core, o build continua possível e a interface usa IDs legíveis. O
 executável é compilado sem ser iniciado.
+
+## Publicar uma versão
+
+Após mesclar a versão desejada em `main`, crie e envie uma tag no formato
+`desktop-vX.Y.Z` (por exemplo, `desktop-v1.2.3`). Isso dispara o workflow de
+release. Ele verifica que o commit da tag já está em `main`, compila o frontend,
+gera o executável com o número da versão e cria a release com estes dois
+arquivos:
+
+- `albion-market-archive.exe`
+- `SHA256SUMS.txt`
+
+O checksum é calculado a partir do `.exe` produzido naquela execução. O workflow
+não executa o app, não publica em Cloudflare e não habilita atualização
+automática. Se a compilação falhar antes da publicação, corrija a causa e
+reexecute a mesma tag. Uma release já criada não é sobrescrita; publique uma
+nova versão se precisar substituir os arquivos.
 
 ## Testes
 

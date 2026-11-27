@@ -32,7 +32,8 @@ Desligar uma categoria interrompe seu envio futuro; a cópia local de ordens
 continua ativa. O app não se inicia com o Windows: abra-o manualmente. No
 Windows, o console fica oculto por padrão e pode ser reaberto pelo menu do ícone
 na bandeja. O projeto não distribui instalador nem atualiza o executável
-automaticamente; compile o app conforme o guia de build.
+automaticamente. Versões publicadas em Releases do GitHub incluem o `.exe` e
+`SHA256SUMS.txt`; confira o hash antes de substituir o executável.
 
 ## Requisitos no Windows
 
@@ -60,6 +61,22 @@ go run -ldflags="-w -s -X main.version=dev" albiondata-client.go
 Instale a CLI Wails compatível com `go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.5`.
 O comando final inicia a captura e o encaminhamento ao AODP enquanto o app
 estiver aberto.
+
+## Baixar uma versão publicada
+
+Cada tag `desktop-vX.Y.Z` publicada a partir de um commit já mesclado em `main`
+gera uma GitHub Release com `albion-market-archive.exe` e seu SHA-256 em
+`SHA256SUMS.txt`. O workflow não inicia o app nem publica atualizações
+automáticas. No PowerShell, valide o arquivo baixado com:
+
+```powershell
+Get-FileHash .\albion-market-archive.exe -Algorithm SHA256
+Get-Content .\SHA256SUMS.txt
+```
+
+O valor calculado para o executável deve corresponder à linha
+`albion-market-archive.exe` do arquivo de checksums. Para compilar localmente,
+use o guia [`docs/build-and-release.md`](docs/build-and-release.md).
 
 Para validar Go, use `go test ./...`; para validar formatação e labels do dump,
 use `npm test` em `desktop-client/frontend`; para validar o frontend, execute
