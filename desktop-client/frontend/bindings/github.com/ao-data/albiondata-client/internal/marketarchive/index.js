@@ -4,5 +4,6 @@
 
 export {
     Entry,
+    ExportResult,
     Result
 } from "./models.js";

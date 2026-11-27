@@ -1,5 +1,6 @@
 <script>
   import { onDestroy, onMount } from 'svelte';
+  import { Dialogs } from '@wailsio/runtime';
   import { DashboardService } from '../../bindings/github.com/ao-data/albiondata-client/internal/dashboard/index.js';
   import {
     formatEnchantment,
@@ -15,10 +16,15 @@
   let search = $state('');
   let locationID = $state('');
   let region = $state('');
+  let fromDate = $state('');
+  let toDate = $state('');
   let itemNames = $state({});
   let itemNamesLocale = $state('');
   let itemNamesRequest = 0;
   let loading = $state(false);
+  let exporting = $state(false);
+  let exportMessage = $state('');
+  let exportError = $state('');
   let result = $state({ Orders: [], Total: 0, InvalidLines: 0, Path: '', Error: '' });
   let requestID = 0;
   let searchTimer;
@@ -59,7 +65,7 @@
     const currentID = ++requestID;
     loading = true;
     try {
-      const next = await DashboardService.GetMarketArchive(search, locationID, region, pageSize);
+      const next = await DashboardService.GetMarketArchiveFiltered(search, locationID, region, fromDate, toDate, pageSize);
       if (currentID === requestID) result = next;
     } catch (error) {
       if (currentID === requestID) {
@@ -80,6 +86,30 @@
   async function copyPath() {
     if (!result.Path) return;
     await navigator.clipboard.writeText(result.Path);
+  }
+
+  async function exportCSV() {
+    exportMessage = '';
+    exportError = '';
+    const destination = await Dialogs.SaveFile({
+      Title: $t('archive.exportTitle'),
+      Filename: 'albion-market-orders.csv',
+      CanCreateDirectories: true,
+      Filters: [{ DisplayName: 'CSV', Pattern: '*.csv' }],
+    });
+    if (!destination) return;
+
+    exporting = true;
+    try {
+      const exported = await DashboardService.ExportMarketArchiveCSV(
+        destination, search, locationID, region, fromDate, toDate,
+      );
+      exportMessage = $t('archive.exported', { count: silverFormat.format(exported.Exported) });
+    } catch {
+      exportError = $t('archive.exportError');
+    } finally {
+      exporting = false;
+    }
   }
 </script>
 
@@ -112,12 +142,24 @@
         <option value="Europe">Europe</option>
       </select>
     </label>
+    <label>
+      <span>{$t('archive.fromDate')}</span>
+      <input type="date" bind:value={fromDate} onchange={load} />
+    </label>
+    <label>
+      <span>{$t('archive.toDate')}</span>
+      <input type="date" bind:value={toDate} onchange={load} />
+    </label>
   </div>
 
   <div class="summary">
     <span><strong>{silverFormat.format(result.Total)}</strong> {$t('archive.recordsNoun')}</span>
     <span>{$t('archive.latest', { count: pageSize })}</span>
+    <button onclick={exportCSV} disabled={exporting}>{exporting ? $t('archive.exporting') : $t('archive.exportCSV')}</button>
   </div>
+
+  {#if exportMessage}<div class="notice success">{exportMessage}</div>{/if}
+  {#if exportError}<div class="notice error">{exportError}</div>{/if}
 
   {#if result.Error}
     <div class="notice error">{$t('archive.readError', { error: result.Error })}</div>
@@ -229,7 +271,7 @@
   }
   .filters {
     display: grid;
-    grid-template-columns: minmax(12rem, 2fr) minmax(8rem, 1fr) minmax(7rem, 0.8fr);
+    grid-template-columns: minmax(12rem, 2fr) minmax(8rem, 1fr) minmax(7rem, 0.8fr) repeat(2, minmax(8rem, 1fr));
     gap: 0.65rem;
   }
   .filters label,
@@ -258,6 +300,7 @@
     color: var(--text-muted);
     font-size: 0.76rem;
   }
+  .summary > span:first-child { margin-right: auto; }
   .summary strong {
     color: var(--text);
     font-family: var(--font-mono);
@@ -338,6 +381,7 @@
   .notice.warning {
     border-color: var(--blue);
   }
+  .notice.success { border-color: var(--moss); }
   .archive-path {
     border-top: 1px solid var(--border);
     padding-top: 0.75rem;
@@ -352,11 +396,12 @@
   }
   @media (max-width: 680px) {
     .filters {
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .filters label:first-child {
       grid-column: 1 / -1;
     }
+    .summary { flex-wrap: wrap; }
     .archive-path {
       align-items: flex-start;
       flex-direction: column;
