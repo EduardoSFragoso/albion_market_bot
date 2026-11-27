@@ -80,7 +80,7 @@ apps/bot/                 Worker puro (sem SDK): Ed25519 + comandos /preco /craf
   src/worker.ts           verificação de assinatura com janela temporal de ±5 min, PING, handlers (embeds PT-BR); /oportunidades usa DEFERRED (type 5) + followup via webhook da interação
   scripts/register-commands.mjs   registra os 5 comandos (PUT /applications/<id>/commands)
 desktop-client/           app pessoal Windows (Go + Wails + Svelte): captura passiva, dump local de ordens e preferências de envio ao AODP
-docs/                     auditoria-infra.md, configuracao-repositorio.md, scan-daemon.md (guia; execução manual)
+docs/                     auditoria-infra.md, configuracao-repositorio.md, auditoria-catalogo-2026-11-27.md, scan-daemon.md (guia; execução manual)
 ```
 
 Namespace de imports no bot: **`@albion/core` não é importado pelo worker** (JSONs de
@@ -209,6 +209,7 @@ e qualidade; `/rank` aceita até quatro encantamentos entre 0 e 3.
 | 10 | Re-deploy do bot com wrangler 4 (`npx wrangler deploy` em apps/bot) + smoke `/preco` no Discord | ✅ feito (2026-11; worker 200 no healthcheck) |
 | 11 | Limite best-effort para `/api/*`: Worker interno + binding de serviço Pages; 60 unidades/60s/IP, `/rank` vale 10 | ✅ publicado e ativo (2026-11; PR #21, commit `a327a67`; smoke HTTPS `/api/search` = 200; sem teste de carga em produção) |
 | 12 | Privacidade do IP de saída do app AODP: considerar túnel dividido por aplicativo ou proxy explícito com falha fechada; adiado junto com a infraestrutura do servidor. Hoje as conexões HTTP do app saem diretamente e o AODP observa o IP de saída | pendência de longo prazo (não implementar sem retomar o tópico) |
+| 13 | Auditoria do catálogo em 2026-11-27: [relatório](docs/auditoria-catalogo-2026-11-27.md). Dump upstream mais recente gera 11.164 itens/9.041 receitas (+6/+2); 7 IDs do OpenAlbion não entram por falta de nomes no dump. JSONs gerados permanecem inalterados até revisão dos itens/receitas candidatos | revisão pendente |
 
 ## 8. Histórico estrutural
 
