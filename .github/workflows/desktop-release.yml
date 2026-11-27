@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'desktop-v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versão sem prefixo, por exemplo 0.1.1'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -17,17 +23,59 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Ensure tag points to merged code
+      - name: Resolve and validate release tag
+        env:
+          RELEASE_VERSION_INPUT: ${{ inputs.version }}
         shell: pwsh
         run: |
-          if ($env:GITHUB_REF_NAME -notmatch '^desktop-v\d+\.\d+\.\d+$') {
-            throw 'Use a release tag in the format desktop-vX.Y.Z.'
+          if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {
+            if ($env:GITHUB_REF_NAME -ne 'main') {
+              throw 'Start manual releases from the main branch.'
+            }
+            $version = $env:RELEASE_VERSION_INPUT.Trim()
+            if ($version -notmatch '^\d+\.\d+\.\d+$') {
+              throw 'Enter a version in the format X.Y.Z, without the desktop-v prefix.'
+            }
+            $tag = "desktop-v$version"
           }
-          git fetch origin main
+          else {
+            if ($env:GITHUB_REF_NAME -notmatch '^desktop-v(\d+\.\d+\.\d+)$') {
+              throw 'Use a release tag in the format desktop-vX.Y.Z.'
+            }
+            $tag = $env:GITHUB_REF_NAME
+            $version = $Matches[1]
+          }
+
+          git fetch origin main --tags
+          if ($LASTEXITCODE -ne 0) { throw 'Could not fetch main and release tags.' }
           git merge-base --is-ancestor "$env:GITHUB_SHA" origin/main
           if ($LASTEXITCODE -ne 0) {
             throw 'Release tags must point to a commit already merged into main.'
           }
+
+          if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {
+            git show-ref --verify --quiet "refs/tags/$tag"
+            if ($LASTEXITCODE -eq 0) {
+              $tagCommit = (git rev-parse "$tag^{commit}").Trim()
+              if ($LASTEXITCODE -ne 0 -or $tagCommit -ne $env:GITHUB_SHA) {
+                throw "Tag $tag already exists on a different commit. Choose a new version."
+              }
+            }
+            elseif ($LASTEXITCODE -eq 1) {
+              git config user.name 'github-actions[bot]'
+              git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+              git tag -a $tag -m "Albion Market Archive v$version" $env:GITHUB_SHA
+              if ($LASTEXITCODE -ne 0) { throw "Could not create tag $tag." }
+              git push origin "refs/tags/$tag"
+              if ($LASTEXITCODE -ne 0) { throw "Could not push tag $tag." }
+            }
+            else {
+              throw "Could not check whether tag $tag already exists."
+            }
+          }
+
+          "RELEASE_TAG=$tag" >> $env:GITHUB_ENV
+          "RELEASE_VERSION=$version" >> $env:GITHUB_ENV
 
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
@@ -54,11 +102,10 @@ jobs:
         working-directory: desktop-client
         shell: pwsh
         run: |
-          $version = $env:GITHUB_REF_NAME -replace '^desktop-v', ''
           $packageDir = Join-Path $env:RUNNER_TEMP 'AlbionMarketArchive'
           New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
           $exePath = Join-Path $packageDir 'albion-market-archive.exe'
-          .\scripts\build-windows.ps1 -OutputPath $exePath -Version $version
+          .\scripts\build-windows.ps1 -OutputPath $exePath -Version $env:RELEASE_VERSION
           Copy-Item README-portable.md (Join-Path $packageDir 'README.md')
 
       - name: Create ZIP and SHA-256 checksum
@@ -88,9 +135,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          $version = $env:GITHUB_REF_NAME -replace '^desktop-v', ''
-          gh release create "$env:GITHUB_REF_NAME" `
+          gh release create "$env:RELEASE_TAG" `
             (Join-Path $env:RUNNER_TEMP 'albion-market-archive-windows-x64.zip') `
             (Join-Path $env:RUNNER_TEMP 'SHA256SUMS.txt') `
-            --title "Albion Market Archive v$version" `
+            --title "Albion Market Archive v$env:RELEASE_VERSION" `
             --generate-notes
