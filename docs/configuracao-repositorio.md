@@ -58,12 +58,19 @@ O fluxo natural fica: mudança → branch → PR → **CI + CodeQL verdes** → 
 | Build dry-run do limitador | `npm run build:api-limiter` |
 | Build do site | `npm run build:web` |
 | Sintaxe do registro de comandos | `node --check apps/bot/scripts/register-commands.mjs` |
+| Testes Go do app desktop | `go test ./client/... ./internal/... ./icon ./lib ./log ./notification` em `desktop-client` |
+| Testes e build do frontend desktop | `npm ci`, `npm test`, `npm run build` em `desktop-client/frontend` |
 
 O Cloudflare Pages também publica uma verificação de preview nos PRs. A CI não faz deploy
 de produção, não chama a API real do Albion e não publica secrets.
 
 O workflow declara `permissions: contents: read`, reduzindo o poder do token. Atualize esta tabela
 junto do workflow se os checks mudarem.
+
+Os testes Go do desktop cobrem os pacotes portáveis do cliente e interfaces. O pacote raiz
+Wails não entra nesse comando da CI Linux: ele incorpora os assets gerados e o runtime do
+executável; o teste integral `go test ./...` continua disponível no ambiente Windows de
+desenvolvimento.
 
 O workflow CodeQL também limita permissões a `actions: read`, `contents: read` e
 `security-events: write`, e analisa Actions, Go e JavaScript/TypeScript nos PRs para `main`,

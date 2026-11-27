@@ -4,18 +4,19 @@ Leia este arquivo **antes** de mexer no repositório. Ele descreve estrutura, co
 contratos que não podem quebrar, armadilhas conhecidas e pendências. Atualizar **na
 mesma alteração** que mudar algo estrutural (regra do [AGENTS.md](AGENTS.md)).
 
-## Ponto salvo — 2026-11-26 (CodeQL avançado + achados Go)
+## Ponto salvo — 2026-11-26 (CodeQL + CI do app desktop)
 
 - PR #29 restaurou o CodeQL avançado; Default setup foi desabilitado. O ruleset exige
   `check` e `Analyze (javascript-typescript)` — preserve esse nome e integração.
-- A análise de `desktop-client/client/config.go` encontrou dois alertas
-  `go/incorrect-integer-conversion` nos logs de debug. Eles vinham de valores Atoi fora
-  do intervalo `uint16`; os testes `config_debug_ids_test.go` falham no código antigo e
-  cobrem faixa válida, rejeição fora de faixa e precedência da blacklist.
-- A matriz CodeQL precisa incluir Actions, Go e JavaScript/TypeScript. Go usa `autobuild`;
-  o workflow deve ser executado no PR e na `main` para atualizar os resultados Go.
-- PR #28 atualizou `golang.org/x/crypto` para `v0.52.0`; após a atualização do grafo,
-  a API do GitHub confirmou zero alertas Dependabot abertos em 2026-11-26.
+- PR #30 incluiu Go na matriz CodeQL e corrigiu os dois achados `go/incorrect-integer-conversion`
+  em `client/config.go`; `parseDebugID` limita a entrada a `uint16`, e os testes provam
+  rejeição de valores fora da faixa e precedência da blacklist. A API do GitHub confirmou
+  zero alertas Code Scanning abertos após a análise de `main`.
+- PR #28 atualizou `golang.org/x/crypto` para `v0.52.0`; a API do GitHub confirmou zero
+  alertas Dependabot abertos em 2026-11-26.
+- A CI `check` também executa os testes Go dos pacotes `client`/`internal` e os testes/build
+  do frontend desktop. O pacote raiz Wails segue fora do comando Linux; `go test ./...`
+  continua no checklist local Windows.
 
 ## Ponto salvo — 2026-11-26 (após merge e deploy)
 
