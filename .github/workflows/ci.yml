@@ -86,6 +86,10 @@ jobs:
         working-directory: desktop-client
         run: go test ./...
 
+      - name: Análise estática Go do app desktop
+        working-directory: desktop-client
+        run: go vet ./...
+
       - name: Compilar executável do app desktop
         working-directory: desktop-client
         shell: pwsh
