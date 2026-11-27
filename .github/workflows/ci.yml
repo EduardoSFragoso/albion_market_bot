@@ -88,7 +88,8 @@ jobs:
 
       - name: Compilar executável do app desktop
         working-directory: desktop-client
-        run: go build -o "${{ runner.temp }}/albion-market-archive.exe" .
+        shell: pwsh
+        run: .\scripts\build-windows.ps1 -OutputPath (Join-Path $env:RUNNER_TEMP 'albion-market-archive.exe') -Version '0.0.0-ci'
 
   check:
     if: always()

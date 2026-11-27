@@ -32,8 +32,10 @@ Desligar uma categoria interrompe seu envio futuro; a cópia local de ordens
 continua ativa. O app não se inicia com o Windows: abra-o manualmente. No
 Windows, o console fica oculto por padrão e pode ser reaberto pelo menu do ícone
 na bandeja. O projeto não distribui instalador nem atualiza o executável
-automaticamente. Versões publicadas em Releases do GitHub incluem o `.exe` e
-`SHA256SUMS.txt`; confira o hash antes de substituir o executável.
+automaticamente. O app grava `albiondata-client.log` ao lado do executável e
+mantém até 10 cópias antigas. Versões publicadas em Releases do GitHub incluem
+um ZIP com uma pasta própria e o `.exe`, além de `SHA256SUMS.txt` para validar o
+ZIP antes de extrair.
 
 ## Requisitos no Windows
 
@@ -55,34 +57,37 @@ npm ci       # uma vez, usando as versões do package-lock.json
 npm run build
 Set-Location ..
 & "$env:USERPROFILE\go\bin\wails3.exe" generate bindings ./...
-go run -ldflags="-w -s -X main.version=dev" albiondata-client.go
+.\scripts\build-windows.ps1 -OutputPath .\bin\albion-market-archive.exe -Version dev
 ```
 
 Instale a CLI Wails compatível com `go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.5`.
-O comando final inicia a captura e o encaminhamento ao AODP enquanto o app
-estiver aberto.
+O script de build usa `go-winres` v0.3.3 via `go run` para embutir e conferir o
+ícone; o Go baixa a ferramenta para o cache de módulos, sem instalá-la no PATH.
+O executável é compilado, mas não iniciado.
 
 ## Baixar uma versão publicada
 
 Cada tag `desktop-vX.Y.Z` publicada a partir de um commit já mesclado em `main`
-gera uma GitHub Release com `albion-market-archive.exe` e seu SHA-256 em
-`SHA256SUMS.txt`. O workflow não inicia o app nem publica atualizações
-automáticas. No PowerShell, valide o arquivo baixado com:
+gera uma GitHub Release com `albion-market-archive-windows-x64.zip` e
+`SHA256SUMS.txt`. O ZIP contém a pasta `AlbionMarketArchive`, com o executável e
+um README portátil. O checksum verifica o ZIP. No PowerShell, valide o arquivo
+baixado antes de extraí-lo:
 
 ```powershell
-Get-FileHash .\albion-market-archive.exe -Algorithm SHA256
+Get-FileHash .\albion-market-archive-windows-x64.zip -Algorithm SHA256
 Get-Content .\SHA256SUMS.txt
 ```
 
-O valor calculado para o executável deve corresponder à linha
-`albion-market-archive.exe` do arquivo de checksums. Para compilar localmente,
-use o guia [`docs/build-and-release.md`](docs/build-and-release.md).
+O hash calculado deve corresponder à linha `albion-market-archive-windows-x64.zip`
+do arquivo de checksums. Depois de extrair, execute o `.exe` dentro da pasta
+incluída. O workflow não inicia o app nem publica atualizações automáticas.
+Para compilar localmente, use o guia
+[`docs/build-and-release.md`](docs/build-and-release.md).
 
 Para validar Go, use `go test ./...`; para validar formatação e labels do dump,
 use `npm test` em `desktop-client/frontend`; para validar o frontend, execute
-`npm run build` no mesmo diretório. O binário pode ser compilado com
-`go build -o bin/albion-market-archive.exe .`; o runtime precisa do Npcap e do
-WebView2 no Windows.
+`npm run build` no mesmo diretório. Para compilar um executável Windows com
+ícone, use `scripts/build-windows.ps1`; o runtime precisa do Npcap e do WebView2.
 
 ## Origem e licença
 
