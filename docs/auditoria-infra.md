@@ -1,8 +1,10 @@
 # Auditoria de infraestrutura — checklist deste repositório
 
 Adaptada do checklist geral da pessoa mantenedora para o escopo real deste projeto:
-**Cloudflare Pages (site + functions), bot em Cloudflare Workers, sem banco atualmente,
-monorepo npm/TypeScript**. Referenciado pelo `AGENTS.md`.
+**Cloudflare Pages (site + Functions), bot e limitador em Cloudflare Workers, app pessoal
+Windows (Go/Wails + Svelte), sem banco de servidor, monorepo npm/TypeScript + Go**.
+O app desktop mantém um dump local e pode enviar categorias habilitadas ao AODP.
+Referenciado pelo `AGENTS.md`.
 
 **Regra de ouro:** nunca cole segredos reais (`DISCORD_BOT_TOKEN`, chaves de API).
 Mascare valores e hosts em qualquer saída enviada a uma IA.
@@ -42,9 +44,13 @@ git log --all --diff-filter=A --name-only --format= | grep -Ei '\.dev\.vars$|\.e
 1. **Rotacione primeiro** (Discord Developer Portal → Reset Token). Rotacionar é o que protege; apagar do código não basta, o histórico guarda o valor.
 2. Reescrever histórico é opcional e vem depois.
 
-## 2. Estado e banco (atualmente: não existe)
+## 2. Estado e banco (sem banco de servidor)
 
-- Sem banco. Se entrar persistência (ex.: histórico de preços próprio, preferências):
+- Site, Functions e Workers não usam banco nem migrações atualmente. O app desktop grava
+  ordens observadas em JSONL local, em `%LOCALAPPDATA%`, e remove registros com mais de
+  30 dias ao abrir e diariamente enquanto está em execução. Preferências de envio ficam
+  em `%APPDATA%`; esses arquivos não são publicados no GitHub.
+- Se entrar persistência no servidor (ex.: histórico de preços próprio):
   - credenciais **só no servidor** (Workers KV/D1 bindings ou variável não-pública);
   - role/pré-fixo de acesso mínimo; migrações versionadas quando for SQL;
   - nada de IPC/dados sensíveis no bundle do frontend (público).
@@ -88,9 +94,23 @@ Meta do projeto: **custo total R$ 0**. Mapeamento recurso → limite → uso rea
 
 - Toda entrada de query validada/normalizada (ids aceitos, números com clamp) — os endpoints já fazem; manter assim em commits e na memória das rotas novas.
 - Respostas de erro **sem stack trace** (o handler de `catch` devolve `{ error: "mensagem" }`).
-- Logs sem dados pessoais (não há pessoais; manter assim).
+- Site/Functions e Workers não devem registrar dados pessoais. O app desktop tem logs
+  locais que podem incluir identificadores do personagem; mascare-os antes de compartilhar
+  logs ou capturas de tela.
 - **API do Discord:** a assinatura Ed25519 é o único gate de escrita — não desativar, nem aceitar `x-signature-*` ausentes em dev sem pensar.
-- **API do AODP:** servicela comunitária — gzip + cache obrigatórios, sem polling; throttle acontece (`Throttled, be nice...`): tratar resposta não-JSON como erro, não quebrar.
+- **API do AODP:** serviço comunitário — gzip + cache obrigatórios, sem polling; throttle acontece (`Throttled, be nice...`): tratar resposta não-JSON como erro, não quebrar.
+
+### 4a. App desktop pessoal
+
+- O cliente Windows captura passivamente mensagens de mercado do jogo, grava ordens no
+  dump local e encaminha ao AODP apenas as categorias de envio habilitadas nas
+  preferências locais. Desativar uma categoria impede o upload público correspondente;
+  não desativa a gravação local do dump.
+- O upload conecta diretamente ao AODP; portanto, o serviço vê o IP público de saída da
+  conexão. Ocultar esse IP com proxy/túnel foi adiado e não está implementado.
+- Para detalhes de instalação, dump, retenção e preferências, consulte
+  [`desktop-client/README.md`](../desktop-client/README.md). Não iniciar o app como parte
+  de CI ou auditoria automatizada: testes de captura dependem de execução manual.
 
 Auditoria rápida, na raiz:
 
@@ -111,15 +131,23 @@ grep -rEn 'fetch\(' apps/bot/src apps/web/functions | grep -v 'SITE_URL\|albion-
 | `apps/bot` | TSC estrito + testes de assinatura, PING, replay e comandos |
 | `apps/api-limiter` | Testes para limite, peso por rota e falha fechada; build dry-run |
 | Cache AODP | Testes para deduplicação em voo e teto de entradas |
+| `desktop-client` (Go + Svelte) | CI em Windows: testes/build do frontend, `go test ./...` e compilação do `.exe`; o executável não é iniciado |
 | Dados gerados (`src/data/*.json`) | Regenerar via `npm run build:data` e **validar contra a API real** (formato `@n` / `_LEVELn@n` já queimado uma vez) |
 | Dependências | Dependabot + `npm audit` |
 
 ## 6. CI e deploy
 
-- A matriz completa e atualizada da GitHub Actions fica em [`.github/workflows/ci.yml`](../.github/workflows/ci.yml): typecheck, sanity, testes das camadas, dry-run do limitador, build do site e checagem do script de registro.
+- A matriz completa e atualizada da GitHub Actions fica em [`.github/workflows/ci.yml`](../.github/workflows/ci.yml):
+  - `verify-core-web` roda em Ubuntu: typecheck, sanity, testes das camadas, dry-run do limitador, build do site e checagem do script de registro;
+  - `desktop-client-windows` roda em Windows: `npm ci`, testes e build do frontend, `go test ./...` e `go build` do executável em diretório temporário, sem iniciá-lo;
+  - `check` agrega os dois jobs e falha se qualquer suíte falhar. Esse é o check obrigatório de CI no ruleset.
 - O check do Cloudflare Pages é separado e valida o preview do PR. A CI não faz deploy de produção nem chama a API real do Albion; o Pages publica automaticamente quando `main` recebe um merge.
 - O deploy do bot e do Worker limitador é separado (`wrangler deploy`). Segredos e alterações de conta Cloudflare seguem a autorização explícita do `AGENTS.md`.
-- A branch `main` usa ruleset; estado e configuração estão descritos em [docs/configuracao-repositorio.md](configuracao-repositorio.md).
+- O CodeQL avançado está em [`.github/workflows/codeql.yml`](../.github/workflows/codeql.yml)
+  e analisa GitHub Actions, Go e JavaScript/TypeScript em PRs para `main`, pushes em
+  `main` e semanalmente. O ruleset ativo `protege-main` exige `check`,
+  `Analyze (javascript-typescript)` e `Analyze (go)`; requer PR e histórico linear.
+  Estado/configuração estão em [docs/configuracao-repositorio.md](configuracao-repositorio.md).
 
 ## O que o agente não faz sem confirmação explícita
 
