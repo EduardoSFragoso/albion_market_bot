@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  check:
+  verify-core-web:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -54,17 +54,21 @@ jobs:
       - name: Bot — script de registro compila
         run: node --check apps/bot/scripts/register-commands.mjs
 
+  desktop-client-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop-client/frontend/package-lock.json
+
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: desktop-client/go.mod
           cache-dependency-path: desktop-client/go.sum
-
-      - name: Instalar cabeçalhos libpcap para testes do cliente
-        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libpcap-dev
-
-      - name: Testes Go do app desktop
-        working-directory: desktop-client
-        run: go test ./client/... ./internal/... ./icon ./lib ./log ./notification
 
       - name: Instalar dependências do frontend desktop
         working-directory: desktop-client/frontend
@@ -77,3 +81,26 @@ jobs:
       - name: Build do frontend desktop
         working-directory: desktop-client/frontend
         run: npm run build
+
+      - name: Testes Go completos do app desktop
+        working-directory: desktop-client
+        run: go test ./...
+
+      - name: Compilar executável do app desktop
+        working-directory: desktop-client
+        run: go build -o "${{ runner.temp }}/albion-market-archive.exe" .
+
+  check:
+    if: always()
+    needs: [verify-core-web, desktop-client-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Exigir sucesso das suítes Linux e Windows
+        env:
+          CORE_WEB_RESULT: ${{ needs.verify-core-web.result }}
+          DESKTOP_WINDOWS_RESULT: ${{ needs.desktop-client-windows.result }}
+        run: |
+          if [[ "$CORE_WEB_RESULT" != "success" || "$DESKTOP_WINDOWS_RESULT" != "success" ]]; then
+            echo "CI incompleta: core/web=$CORE_WEB_RESULT; desktop Windows=$DESKTOP_WINDOWS_RESULT"
+            exit 1
+          fi
