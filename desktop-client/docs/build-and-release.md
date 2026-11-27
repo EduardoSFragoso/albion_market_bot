@@ -37,11 +37,27 @@ executável é compilado sem ser iniciado.
 
 ## Publicar uma versão
 
-Após mesclar a versão desejada em `main`, crie e envie uma tag no formato
-`desktop-vX.Y.Z` (por exemplo, `desktop-v1.2.3`). Isso dispara o workflow de
-release. Ele verifica que o commit da tag já está em `main`, compila o frontend,
-gera o executável com o número da versão e cria a release com estes dois
-arquivos:
+Depois que as mudanças estiverem em `main`, inicie **Actions → Desktop release →
+Run workflow**, escolha `main` e informe a versão sem prefixo, como `1.2.3`. O
+workflow cria a tag `desktop-v1.2.3`, compila o frontend, gera o executável com
+esse número e publica a release.
+
+Também é possível iniciar o mesmo workflow no PowerShell com GitHub CLI (`gh`)
+instalado e autenticado:
+
+```powershell
+gh workflow run desktop-release.yml --ref main -f version=1.2.3
+```
+
+Se preferir, o disparo por tag continua disponível:
+
+```powershell
+git tag -a desktop-v1.2.3 -m "Albion Market Archive v1.2.3"
+git push origin desktop-v1.2.3
+```
+
+Em qualquer caminho, o workflow verifica que o commit já está em `main` e
+publica a release com estes dois arquivos:
 
 - `albion-market-archive-windows-x64.zip` — contém a pasta `AlbionMarketArchive`,
   o `.exe` e um README curto para uso portátil
@@ -50,9 +66,10 @@ arquivos:
 O checksum é calculado a partir do ZIP. O workflow também confere que o ZIP
 contém a pasta, o executável e o README, e extrai o recurso para verificar que o
 ícone foi embutido. Não executa o app, não publica em Cloudflare e não habilita
-atualização automática. Se a compilação falhar antes da publicação, corrija a
-causa e reexecute a mesma tag. Uma release já criada não é sobrescrita; publique
-uma nova versão se precisar substituir os arquivos.
+atualização automática. Se a compilação falhar antes de criar a release, corrija
+a causa e reexecute o workflow com a mesma versão e o mesmo commit. A tag só é
+reutilizada quando ainda aponta para esse commit. Uma release já criada não é
+sobrescrita; publique uma nova versão se precisar substituir os arquivos.
 
 O app grava `albiondata-client.log` ao lado do executável e mantém até 10 cópias
 antigas. O arquivo é texto simples e pode ser aberto por um editor de texto.

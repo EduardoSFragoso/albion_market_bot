@@ -65,10 +65,31 @@ O script de build usa `go-winres` v0.3.3 via `go run` para embutir e conferir o
 ícone; o Go baixa a ferramenta para o cache de módulos, sem instalá-la no PATH.
 O executável é compilado, mas não iniciado.
 
+## Publicar uma versão
+
+Depois de mesclar as mudanças em `main`, abra **Actions → Desktop release → Run
+workflow**, selecione `main` e informe a versão sem prefixo, por exemplo `1.2.3`.
+O workflow cria a tag `desktop-v1.2.3`, compila o app e publica a GitHub Release.
+Ele só aceita commits já mesclados em `main` e não substitui uma release
+existente.
+
+Também dá para iniciar a publicação pelo PowerShell, com GitHub CLI instalado e
+autenticado:
+
+```powershell
+gh workflow run desktop-release.yml --ref main -f version=1.2.3
+```
+
+O processo por tag continua disponível:
+
+```powershell
+git tag -a desktop-v1.2.3 -m "Albion Market Archive v1.2.3"
+git push origin desktop-v1.2.3
+```
+
 ## Baixar uma versão publicada
 
-Cada tag `desktop-vX.Y.Z` publicada a partir de um commit já mesclado em `main`
-gera uma GitHub Release com `albion-market-archive-windows-x64.zip` e
+Cada versão publicada gera uma GitHub Release com `albion-market-archive-windows-x64.zip` e
 `SHA256SUMS.txt`. O ZIP contém a pasta `AlbionMarketArchive`, com o executável e
 um README portátil. O checksum verifica o ZIP. No PowerShell, valide o arquivo
 baixado antes de extraí-lo:
