@@ -15,8 +15,9 @@ mesma alteração** que mudar algo estrutural (regra do [AGENTS.md](AGENTS.md)).
 - PR #28 atualizou `golang.org/x/crypto` para `v0.52.0`; a API do GitHub confirmou zero
   alertas Dependabot abertos em 2026-11-26.
 - A CI `check` também executa os testes Go dos pacotes `client`/`internal` e os testes/build
-  do frontend desktop. O pacote raiz Wails segue fora do comando Linux; `go test ./...`
-  continua no checklist local Windows.
+  do frontend desktop. O runner Linux precisa de `libpcap-dev` para compilar o adaptador
+  de captura. O pacote raiz Wails segue fora do comando Linux; `go test ./...` continua no
+  checklist local Windows.
 
 ## Ponto salvo — 2026-11-26 (após merge e deploy)
 

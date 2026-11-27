@@ -67,10 +67,10 @@ de produção, não chama a API real do Albion e não publica secrets.
 O workflow declara `permissions: contents: read`, reduzindo o poder do token. Atualize esta tabela
 junto do workflow se os checks mudarem.
 
-Os testes Go do desktop cobrem os pacotes portáveis do cliente e interfaces. O pacote raiz
-Wails não entra nesse comando da CI Linux: ele incorpora os assets gerados e o runtime do
-executável; o teste integral `go test ./...` continua disponível no ambiente Windows de
-desenvolvimento.
+Os testes Go do desktop cobrem os pacotes portáveis do cliente e interfaces; o runner
+Ubuntu instala `libpcap-dev` para compilar o adaptador de captura. O pacote raiz Wails não
+entra nesse comando da CI Linux: ele incorpora os assets gerados e o runtime do executável;
+o teste integral `go test ./...` continua disponível no ambiente Windows de desenvolvimento.
 
 O workflow CodeQL também limita permissões a `actions: read`, `contents: read` e
 `security-events: write`, e analisa Actions, Go e JavaScript/TypeScript nos PRs para `main`,
