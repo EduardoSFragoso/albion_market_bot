@@ -34,18 +34,18 @@ GitHub → Settings → Rules → Rulesets → criar regra para `main`:
 | Regra | Por quê |
 |---|---|
 | Require pull request before merging | Toda mudança passa por PR revisável |
-| Require status checks: **CI** (matriz da seção 3) + **CodeQL** (`Analyze (javascript-typescript)`) | Merge só com a rede de segurança verde — testes + análise de vulnerabilidade de código |
+| Require status checks: **`check`**, **`Analyze (javascript-typescript)`** e **`Analyze (go)`** | Merge só com a CI completa e as análises de código verdes |
 | Require linear history | Histórico limpo, fácil de reverter |
 | Block force pushes | Impossibilita histórico reescrito por acidente |
 
-O fluxo natural fica: mudança → branch → PR → **CI + CodeQL verdes** → **Rebase and merge** em `main`
+O fluxo natural fica: mudança → branch → PR → **`check` + CodeQL (JavaScript/TypeScript e Go) verdes** → **Rebase and merge** em `main`
 (único método permitido: merge commit e squash estão desativados no repo).
 
 ## 3. CI e verificações de PR
 
-`.github/workflows/ci.yml` é a fonte da verdade para a verificação `check` de GitHub Actions;
-`.github/workflows/codeql.yml` define a análise CodeQL avançada e publica
-`Analyze (javascript-typescript)`, exigido pelo ruleset:
+`.github/workflows/ci.yml` é a fonte da verdade para a verificação agregada `check` de GitHub Actions;
+`.github/workflows/codeql.yml` define a análise CodeQL avançada. O ruleset ativo exige
+`check`, `Analyze (javascript-typescript)` e `Analyze (go)`:
 
 | Verificação | Comando |
 |---|---|
@@ -77,8 +77,8 @@ O workflow CodeQL também limita permissões a `actions: read`, `contents: read`
 pushes em `main` e semanalmente. Go usa `autobuild`; as linguagens interpretadas usam
 `none`. A configuração CodeQL do repositório deve estar em
 **Advanced setup**; o **Default setup** desativa workflows avançados e bloqueia uploads.
-O job `Analyze (javascript-typescript)` deve continuar com esse nome porque é um check
-obrigatório no ruleset.
+Os jobs `Analyze (javascript-typescript)` e `Analyze (go)` devem continuar com esses
+nomes porque são checks obrigatórios no ruleset.
 
 ## 4. Dependabot
 
